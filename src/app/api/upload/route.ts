@@ -14,23 +14,18 @@ export async function POST(request: Request) {
     const supabase = await createClient()
     const jobId = crypto.randomUUID()
     
-    // Upload file to Supabase Storage
     const storagePath = `${jobId}/${file.name}`
     const buffer = await file.arrayBuffer()
-    
-    const { data: storageData, error: storageError } = await supabase.storage
+
+    // Start storage upload promise
+    const storagePromise = supabase.storage
       .from('documents')
       .upload(storagePath, buffer, { 
         upsert: true,
         contentType: file.type
       })
 
-    if (storageError) {
-      console.error('Storage error:', storageError)
-      return NextResponse.json({ error: 'Failed to upload file to storage' }, { status: 500 })
-    }
-
-    // Determine total pages via simple PDF text matching
+    // Determine total pages via simple PDF text matching (CPU bound, fast)
     let pageCount = 1
     if (file.type === 'application/pdf') {
       const text = Buffer.from(buffer).toString('latin1')
@@ -40,7 +35,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // Create the print_jobs record
+    // Start job record promise
     const filesJson = [{
       file_id: crypto.randomUUID(),
       filename: file.name,
@@ -53,7 +48,7 @@ export async function POST(request: Request) {
       subtotal_paise: 200
     }]
 
-    const { error: jobError } = await supabase
+    const jobPromise = supabase
       .from('print_jobs')
       .insert({
         id: jobId,
@@ -64,17 +59,10 @@ export async function POST(request: Request) {
         estimated_seconds: 10 * pageCount
       })
 
-    if (jobError) {
-      console.error('Job insert error:', jobError)
-      return NextResponse.json({ error: 'Failed to create job record' }, { status: 500 })
-    }
-
-    // Generate OTP
+    // Start OTP generation promise
     const otp = Math.floor(1000 + Math.random() * 9000).toString()
-
-    // Insert into otp_sessions
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString() // 15 mins validity
-    const { error: otpError } = await supabase
+    const otpPromise = supabase
       .from('otp_sessions')
       .insert({
         print_job_id: jobId,
@@ -82,8 +70,23 @@ export async function POST(request: Request) {
         expires_at: expiresAt
       })
 
-    if (otpError) {
-      console.error('OTP insert error:', otpError)
+    // Wait for all three network operations concurrently
+    const [storageRes, jobRes, otpRes] = await Promise.all([
+      storagePromise,
+      jobPromise,
+      otpPromise
+    ])
+
+    if (storageRes.error) {
+      console.error('Storage error:', storageRes.error)
+      return NextResponse.json({ error: 'Failed to upload file to storage' }, { status: 500 })
+    }
+    if (jobRes.error) {
+      console.error('Job insert error:', jobRes.error)
+      return NextResponse.json({ error: 'Failed to create job record' }, { status: 500 })
+    }
+    if (otpRes.error) {
+      console.error('OTP insert error:', otpRes.error)
       return NextResponse.json({ error: 'Failed to generate OTP' }, { status: 500 })
     }
 

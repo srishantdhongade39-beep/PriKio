@@ -15,7 +15,7 @@ export default function UploadScreen() {
   const abortControllerRef = useRef<AbortController | null>(null)
 
   const handleFiles = (incoming: FileList | File[]) => {
-    const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx']
+    const allowedExtensions = ['.pdf', '.docx', '.doc', '.txt', '.xlsx', '.xls', '.csv', '.pptx', '.ppt', '.jpg', '.jpeg', '.png', '.html', '.htm', '.xml']
     const validFiles: File[] = []
     let rejectedCount = 0
 
@@ -29,7 +29,7 @@ export default function UploadScreen() {
     })
 
     if (rejectedCount > 0) {
-      alert(`Skipped ${rejectedCount} file(s). Only PDF, JPG, PNG, and Word formats are supported.`)
+      alert(`Skipped ${rejectedCount} file(s). Only Document, Spreadsheet, Presentation, Image, and Code formats are supported.`)
     }
 
     const arr = validFiles.map((f) => ({
@@ -523,7 +523,7 @@ export default function UploadScreen() {
             <line x1="12" y1="3" x2="12" y2="15"></line>
           </svg>
           <h1 className="up-left-title">Upload Your Files</h1>
-          <p className="up-left-sub">Select PDF, Word, JPG or PNG files.</p>
+          <p className="up-left-sub">Select PDF, Office, Image, or Code files.</p>
           <div className="up-dots">
             <div className="up-dot active" />
             <div className="up-dot" />
@@ -541,7 +541,7 @@ export default function UploadScreen() {
               <div className="up-card-inner">
                 <input
                   ref={inputRef} type="file" multiple
-                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                  accept=".pdf,.docx,.doc,.txt,.xlsx,.xls,.csv,.pptx,.ppt,.jpg,.jpeg,.png,.html,.htm,.xml"
                   style={{ display: "none" }}
                   onChange={(e) => {
                     if (e.target.files) handleFiles(e.target.files)
@@ -606,7 +606,7 @@ export default function UploadScreen() {
               )}
 
                 <div className="up-hint">✓ Preview pages before you print</div>
-                <div className="up-formats">Accepted formats: PDF, Word, JPG, PNG. Max 100MB per file</div>
+                <div className="up-formats">Accepted formats: PDF, Office, TXT, CSV, HTML, XML, Images. Max 100MB</div>
               </div>
             </div>
 
