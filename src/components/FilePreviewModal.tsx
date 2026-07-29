@@ -143,14 +143,16 @@ export default function FilePreviewModal({
   const [selectedPages, setSelectedPages] = useState<Set<number>>(new Set())
   const [objectUrl, setObjectUrl] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [isFetchingPdf, setIsFetchingPdf] = useState(true)
 
   useEffect(() => {
     setSelectedPages(parsePageRangeToSet(file.pagesToPrint, file.pageCount))
   }, [file])
 
   useEffect(() => {
-    if (!file.originalFile) {
-      setErrorMsg("Original file object is lost from memory.")
+    if (!file.originalFile && !file.url) {
+      setErrorMsg("File data is missing.")
+      setIsFetchingPdf(false)
       return
     }
 
@@ -168,6 +170,7 @@ export default function FilePreviewModal({
                   || typeof file.fileName === 'string' && file.fileName.toLowerCase().endsWith('.pdf')
     
     if (isPdf) {
+      setIsFetchingPdf(true)
       try {
         // If the local file is a native PDF, read it directly (instant)
         if (file.originalFile && file.originalFile.type === 'application/pdf') {
@@ -177,13 +180,18 @@ export default function FilePreviewModal({
               cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
               cMapPacked: true,
               standardFontDataUrl: `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/standard_fonts/`
-            }).promise.then(setPdf).catch(err => {
+            }).promise.then(loadedPdf => {
+              setPdf(loadedPdf)
+              setIsFetchingPdf(false)
+            }).catch(err => {
               console.error(err)
               setErrorMsg(err.message || 'Failed to load PDF document.')
+              setIsFetchingPdf(false)
             })
           }).catch(err => {
             console.error(err)
             setErrorMsg('Failed to read file data.')
+            setIsFetchingPdf(false)
           })
         } 
         // Otherwise, if it was converted (like a PPTX), fetch the converted PDF from Supabase
@@ -196,23 +204,33 @@ export default function FilePreviewModal({
                 cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
                 cMapPacked: true,
                 standardFontDataUrl: `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/standard_fonts/`
-              }).promise.then(setPdf).catch(err => {
+              }).promise.then(loadedPdf => {
+                setPdf(loadedPdf)
+                setIsFetchingPdf(false)
+              }).catch(err => {
                 console.error(err)
                 setErrorMsg(err.message || 'Failed to load converted PDF.')
+                setIsFetchingPdf(false)
               })
             }).catch(err => {
               console.error(err)
               setErrorMsg('Failed to download converted PDF for preview.')
+              setIsFetchingPdf(false)
             })
+        } else {
+           setIsFetchingPdf(false)
         }
       } catch (err: any) {
         console.error("Synchronous error starting PDF.js:", err);
         setErrorMsg(err.message || 'Critical error starting PDF renderer.');
+        setIsFetchingPdf(false)
       }
+    } else {
+      setIsFetchingPdf(false)
     }
 
     return () => {
-      URL.revokeObjectURL(url)
+      if (url) URL.revokeObjectURL(url)
     }
   }, [file])
 
@@ -258,6 +276,13 @@ export default function FilePreviewModal({
                   onToggle={handleToggle} 
                 />
               ))}
+            </div>
+          ) : isFetchingPdf ? (
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', color: 'var(--grey)' }}>
+              <div className="spinner" style={{ width: '40px', height: '40px', border: '3px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '16px' }}></div>
+              <div style={{ fontWeight: 500, color: 'var(--gd)' }}>Loading Preview...</div>
+              <div style={{ fontSize: '13px', marginTop: '4px' }}>Fetching converted document</div>
+              <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
             </div>
           ) : isImage && objectUrl ? (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
