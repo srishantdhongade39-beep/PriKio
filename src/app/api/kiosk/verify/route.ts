@@ -55,11 +55,19 @@ export async function POST(request: Request) {
     const jobData = session.print_jobs
     let fileName = "Document"
     let pageCount = 1
+    let colorMode = 'B&W'
+    let sides = 'Single'
     
-    // Extract file info if available
-    if (jobData && jobData.files && jobData.files.length > 0) {
-      fileName = jobData.files[0].filename || "Document"
-      pageCount = jobData.files.length
+    if (jobData) {
+      // PostgREST might return an array for relationships depending on schema
+      const actualJob = Array.isArray(jobData) ? jobData[0] : jobData;
+      
+      if (actualJob && actualJob.files && actualJob.files.length > 0) {
+        fileName = actualJob.files[0].filename || "Document"
+        pageCount = actualJob.files.length
+        colorMode = actualJob.files[0].color_mode || 'B&W'
+        sides = actualJob.files[0].sides || 'Single'
+      }
     }
 
     return NextResponse.json({
@@ -68,8 +76,8 @@ export async function POST(request: Request) {
       job_id: printJobId,
       file_name: fileName,
       page_count: pageCount,
-      color_mode: jobData.files?.[0]?.color_mode || 'B&W',
-      sides: jobData.files?.[0]?.sides || 'Single',
+      color_mode: colorMode,
+      sides: sides,
       profile: {
         id: 'guest-' + otp_entered,
         full_name: 'Guest User',
@@ -81,6 +89,6 @@ export async function POST(request: Request) {
 
   } catch (error: any) {
     console.error('Verify OTP error:', error)
-    return NextResponse.json({ success: false, message: 'Internal Server Error' }, { status: 500 })
+    return NextResponse.json({ success: false, message: error.message || 'Internal Server Error', stack: error.stack }, { status: 500 })
   }
 }
