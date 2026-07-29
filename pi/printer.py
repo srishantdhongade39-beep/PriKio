@@ -86,27 +86,33 @@ def print_job(job_id, file_info, supabase_client):
             else:
                 lp_cmd.extend(["-o", "portrait", "-o", "orientation-requested=3"])
 
+            # Page Ranges
+            pages_selected = file_info.get("pages_selected")
+            if pages_selected and str(pages_selected).lower() != "all":
+                lp_cmd.extend(["-o", f"page-ranges={pages_selected}"])
+
             # Add fit-to-page so images actually rotate and fit properly
             lp_cmd.extend(["-o", "fit-to-page"])
 
             # Add the filepath at the end
             lp_cmd.append(local_filepath)
 
-            # Run the lp command multiple times for copies
-            for i in range(copies_num):
-                logger.info(f"Sending copy {i+1} of {copies_num} to CUPS...")
-                result = subprocess.run(
-                    lp_cmd,
-                    capture_output=True,
-                    text=True
-                )
-                
-                if result.returncode == 0:
-                    logger.info(f"CUPS Output: {result.stdout.strip()}")
-                else:
-                    logger.error(f"CUPS Error: {result.stderr.strip()}")
+            # Run the lp command once with the native CUPS copies flag
+            copies_num = int(copies) if copies else 1
+            lp_cmd.extend(["-n", str(copies_num)])
             
-            logger.info("All copies sent to printer queue successfully!")
+            logger.info(f"Sending {copies_num} copies to CUPS...")
+            result = subprocess.run(
+                lp_cmd,
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                logger.info(f"CUPS Output: {result.stdout.strip()}")
+                logger.info("Print job sent to queue successfully!")
+            else:
+                logger.error(f"CUPS Error: {result.stderr.strip()}")
             
     except Exception as e:
         logger.error(f"Failed to print job: {str(e)}")
