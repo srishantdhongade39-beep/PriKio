@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     if (file.type !== 'application/pdf') {
       const convertApiKey = process.env.NODE_ENV === 'production' 
         ? process.env.CONVERT_API_SECRET 
-        : process.env.CONVERT_API_SANDBOX_SECRET;
+        : (process.env.CONVERT_API_SANDBOX_SECRET || process.env.CONVERT_API_SECRET);
         
       if (!convertApiKey) {
         return NextResponse.json({ error: 'ConvertAPI secret is not configured' }, { status: 500 });

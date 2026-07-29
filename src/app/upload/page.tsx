@@ -118,6 +118,7 @@ export default function UploadScreen() {
         console.log('Upload cancelled')
       } else {
         console.error(err)
+        alert('Upload failed: ' + (err.message || 'Unknown error occurred.'))
       }
       setUploading(false)
     }
@@ -544,7 +545,10 @@ export default function UploadScreen() {
                   accept=".pdf,.docx,.doc,.txt,.xlsx,.xls,.csv,.pptx,.ppt,.jpg,.jpeg,.png,.html,.htm,.xml"
                   style={{ display: "none" }}
                   onChange={(e) => {
-                    if (e.target.files) handleFiles(e.target.files)
+                    if (e.target.files && e.target.files.length > 0) {
+                      handleFiles(e.target.files)
+                      e.target.value = ''
+                    }
                   }}
                 />
 
