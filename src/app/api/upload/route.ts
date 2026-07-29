@@ -128,16 +128,16 @@ export async function POST(request: Request) {
     ])
 
     if (storageRes.error) {
-      console.error('Storage error:', storageRes.error)
-      return NextResponse.json({ error: 'Failed to upload file to storage' }, { status: 500 })
+      console.error('Storage upload error:', storageRes.error)
+      return NextResponse.json({ error: 'Failed to upload file to storage: ' + storageRes.error.message }, { status: 500 })
     }
     if (jobRes.error) {
       console.error('Job insert error:', jobRes.error)
-      return NextResponse.json({ error: 'Failed to create job record' }, { status: 500 })
+      return NextResponse.json({ error: 'Failed to create job record: ' + jobRes.error.message }, { status: 500 })
     }
     if (otpRes.error) {
       console.error('OTP insert error:', otpRes.error)
-      return NextResponse.json({ error: 'Failed to generate OTP' }, { status: 500 })
+      return NextResponse.json({ error: 'Failed to create OTP session: ' + otpRes.error.message }, { status: 500 })
     }
 
     return NextResponse.json({
