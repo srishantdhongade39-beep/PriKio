@@ -114,7 +114,6 @@ export default function KioskPage() {
         setProfile(data.profile)
         setJobs([newJob])
         setRfidWaiting(false)
-        setShowOtpPad(false)
         setPrintingPageIndex(1)
       } else {
         alert(data.message || 'Invalid OTP code')
@@ -155,7 +154,6 @@ export default function KioskPage() {
     setProfile(null)
     setJobs([])
     setRfidWaiting(true)
-    setShowOtpPad(false)
     setOtpBuffer('')
   }
 
