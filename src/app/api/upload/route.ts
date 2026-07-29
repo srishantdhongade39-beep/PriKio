@@ -67,10 +67,15 @@ export async function POST(request: Request) {
 
     const storagePath = `${jobId}/${fileName}`
 
+    // Wrap the ArrayBuffer in a native Blob. 
+    // Supabase (and Next.js fetch) handles Blobs perfectly, whereas raw ArrayBuffers 
+    // from Node occasionally trigger 'fetch failed' in Vercel's environment.
+    const uploadBlob = new Blob([buffer], { type: fileType });
+
     // Start storage upload promise
     const storagePromise = supabase.storage
       .from('documents')
-      .upload(storagePath, buffer, { 
+      .upload(storagePath, uploadBlob, { 
         upsert: true,
         contentType: fileType
       })
