@@ -50,7 +50,11 @@ export async function POST(request: Request) {
 
         const result = await response.json();
         const base64Data = result.Files[0].FileData;
-        buffer = Buffer.from(base64Data, 'base64');
+        
+        // Next.js fetch (used by Supabase) can sometimes fail with raw Node Buffers.
+        // We convert the Node Buffer to a standard Web ArrayBuffer (which is what file.arrayBuffer() returns).
+        const nodeBuf = Buffer.from(base64Data, 'base64');
+        buffer = nodeBuf.buffer.slice(nodeBuf.byteOffset, nodeBuf.byteOffset + nodeBuf.byteLength);
         
         // Update file name and type so the rest of the flow treats it as a PDF
         fileName = fileName.substring(0, fileName.lastIndexOf('.')) + '.pdf';
