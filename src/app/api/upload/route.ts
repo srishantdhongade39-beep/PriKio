@@ -72,13 +72,18 @@ export async function POST(request: Request) {
     // from Node occasionally trigger 'fetch failed' in Vercel's environment.
     const uploadBlob = new Blob([buffer], { type: fileType });
 
-    // Start storage upload promise
-    const storagePromise = supabase.storage
+    // 1. Upload to storage
+    const storageRes = await supabase.storage
       .from('documents')
       .upload(storagePath, uploadBlob, { 
         upsert: true,
         contentType: fileType
       })
+
+    if (storageRes.error) {
+      console.error('Storage upload error:', storageRes.error)
+      return NextResponse.json({ error: 'Failed to upload file to storage: ' + storageRes.error.message }, { status: 500 })
+    }
 
     // Determine total pages via simple PDF text matching (CPU bound, fast)
     let pageCount = 1
@@ -90,34 +95,38 @@ export async function POST(request: Request) {
       }
     }
 
-    // Start job record promise
-    const filesJson = [{
-      file_id: crypto.randomUUID(),
-      filename: fileName,
-      storage_path: storagePath,
-      pages_selected: 'All',
-      copies: 1,
-      color_mode: 'B&W',
-      paper_size: 'A4',
-      sides: 'Single',
-      subtotal_paise: 200
-    }]
-
-    const jobPromise = supabase
+    // 2. Create the print job record
+    const jobRes = await supabase
       .from('print_jobs')
       .insert({
         id: jobId,
         session_id: crypto.randomUUID(), // temporary session ID
         status: 'pending',
-        files: filesJson,
+        files: [{
+          file_id: crypto.randomUUID(),
+          filename: fileName,
+          storage_path: storagePath,
+          pages_selected: 'All',
+          copies: 1,
+          color_mode: 'B&W',
+          paper_size: 'A4',
+          sides: 'Single',
+          subtotal_paise: 200
+        }],
         total_amount_paise: 200,
         estimated_seconds: 10 * pageCount
       })
 
-    // Start OTP generation promise
+    if (jobRes.error) {
+      console.error('Job insert error:', jobRes.error)
+      return NextResponse.json({ error: 'Failed to create job record: ' + jobRes.error.message }, { status: 500 })
+    }
+
+    // 3. Create the OTP session ONLY AFTER the job is created (foreign key requirement)
     const otp = Math.floor(1000 + Math.random() * 9000).toString()
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString() // 15 mins validity
-    const otpPromise = supabase
+
+    const otpRes = await supabase
       .from('otp_sessions')
       .insert({
         print_job_id: jobId,
@@ -125,21 +134,6 @@ export async function POST(request: Request) {
         expires_at: expiresAt
       })
 
-    // Wait for all three network operations concurrently
-    const [storageRes, jobRes, otpRes] = await Promise.all([
-      storagePromise,
-      jobPromise,
-      otpPromise
-    ])
-
-    if (storageRes.error) {
-      console.error('Storage upload error:', storageRes.error)
-      return NextResponse.json({ error: 'Failed to upload file to storage: ' + storageRes.error.message }, { status: 500 })
-    }
-    if (jobRes.error) {
-      console.error('Job insert error:', jobRes.error)
-      return NextResponse.json({ error: 'Failed to create job record: ' + jobRes.error.message }, { status: 500 })
-    }
     if (otpRes.error) {
       console.error('OTP insert error:', otpRes.error)
       return NextResponse.json({ error: 'Failed to create OTP session: ' + otpRes.error.message }, { status: 500 })
