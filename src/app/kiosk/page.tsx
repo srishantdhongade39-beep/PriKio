@@ -356,118 +356,78 @@ export default function KioskPage() {
           </main>
         </div>
 
-        {/* RFID & OTP Welcome Overlay */}
+        {/* OTP Welcome Overlay */}
         {rfidWaiting && (
           <div className="overlay" style={{ background: 'rgba(255, 255, 255, 0.95)' }}>
-            {!showOtpPad ? (
-              <>
-                <div className="hero-rings">
-                  <div className="ring ring-1"></div>
-                  <div className="ring ring-2"></div>
-                  <div className="ring ring-3"></div>
-                </div>
-                <div className="rfid-graphic" onClick={() => handleRfidTap('S12345')}>
-                  <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="2" y="5" width="20" height="14" rx="2"></rect>
-                    <line x1="2" y1="10" x2="22" y2="10"></line>
-                    <path d="M7 15h.01"></path>
-                    <path d="M11 15h2"></path>
-                  </svg>
-                </div>
-                <h1 className="hero">Tap your <i>ID Card</i></h1>
-                <p className="body-text" style={{ marginTop: '20px', textAlign: 'center' }}>
-                  Place your Presidency University ID card<br />on the reader below to begin.
-                </p>
-                <button 
-                  onClick={() => setShowOtpPad(true)}
-                  className="btn-outline" 
-                  style={{ marginTop: '40px', background: 'white' }}
-                >
-                  Enter Code Manually
-                </button>
-              </>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', animation: 'fadeIn 0.3s ease' }}>
-                <h1 className="hero" style={{ marginBottom: '10px' }}>Enter <i>OTP Code</i></h1>
-                <p className="body-text" style={{ marginBottom: '40px' }}>Type the 4-digit code shown on your phone.</p>
-                
-                {/* OTP Input display */}
-                <div style={{ display: 'flex', gap: '20px', marginBottom: '50px' }}>
-                  {[0, 1, 2, 3].map((i) => (
-                    <div 
-                      key={i} 
-                      style={{ 
-                        width: '80px', height: '100px', 
-                        border: `3px solid ${otpBuffer.length === i ? 'var(--accent)' : 'var(--border)'}`, 
-                        borderRadius: '16px', 
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '48px', fontWeight: 600, color: 'var(--gd)',
-                        background: 'white',
-                        transition: 'border 0.2s ease'
-                      }}
-                    >
-                      {otpBuffer[i] || ''}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Numpad */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', width: '340px' }}>
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-                    <button 
-                      key={num}
-                      onClick={() => setOtpBuffer(prev => prev.length < 4 ? prev + num : prev)}
-                      style={{
-                        height: '80px', borderRadius: '40px', border: '1px solid var(--border)',
-                        background: 'white', fontSize: '32px', fontWeight: 500, color: 'var(--gd)',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {num}
-                    </button>
-                  ))}
-                  <button 
-                    onClick={() => {
-                      setShowOtpPad(false)
-                      setOtpBuffer('')
-                    }}
-                    style={{
-                      height: '80px', borderRadius: '40px', border: 'none',
-                      background: 'transparent', fontSize: '18px', fontWeight: 600, color: 'var(--grey)',
-                      cursor: 'pointer'
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', animation: 'fadeIn 0.3s ease' }}>
+              <h1 className="hero" style={{ marginBottom: '10px' }}>Enter <i>OTP Code</i></h1>
+              <p className="body-text" style={{ marginBottom: '40px' }}>Type the 4-digit code shown on your phone.</p>
+              
+              {/* OTP Input display */}
+              <div style={{ display: 'flex', gap: '20px', marginBottom: '50px' }}>
+                {[0, 1, 2, 3].map((i) => (
+                  <div 
+                    key={i} 
+                    style={{ 
+                      width: '80px', height: '100px', 
+                      border: `3px solid ${otpBuffer.length === i ? 'var(--accent)' : 'var(--border)'}`, 
+                      borderRadius: '16px', 
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '48px', fontWeight: 600, color: 'var(--gd)',
+                      background: 'white',
+                      transition: 'border 0.2s ease'
                     }}
                   >
-                    Cancel
-                  </button>
+                    {otpBuffer[i] || ''}
+                  </div>
+                ))}
+              </div>
+
+              {/* Numpad */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', width: '340px' }}>
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
                   <button 
-                    onClick={() => setOtpBuffer(prev => prev.length < 4 ? prev + '0' : prev)}
+                    key={num}
+                    onClick={() => setOtpBuffer(prev => prev.length < 4 ? prev + num : prev)}
                     style={{
                       height: '80px', borderRadius: '40px', border: '1px solid var(--border)',
                       background: 'white', fontSize: '32px', fontWeight: 500, color: 'var(--gd)',
                       cursor: 'pointer'
                     }}
                   >
-                    0
+                    {num}
                   </button>
-                  <button 
-                    onClick={() => setOtpBuffer(prev => prev.slice(0, -1))}
-                    style={{
-                      height: '80px', borderRadius: '40px', border: 'none',
-                      background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: 'var(--grey)', cursor: 'pointer'
-                    }}
-                  >
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"></path>
-                      <line x1="18" y1="9" x2="12" y2="15"></line>
-                      <line x1="12" y1="9" x2="18" y2="15"></line>
-                    </svg>
-                  </button>
-                </div>
-
-                {isVerifying && <div style={{ marginTop: '30px', color: 'var(--accent)', fontWeight: 600 }}>Verifying code...</div>}
+                ))}
+                {/* Empty cell for layout */}
+                <div></div>
+                <button 
+                  onClick={() => setOtpBuffer(prev => prev.length < 4 ? prev + '0' : prev)}
+                  style={{
+                    height: '80px', borderRadius: '40px', border: '1px solid var(--border)',
+                    background: 'white', fontSize: '32px', fontWeight: 500, color: 'var(--gd)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  0
+                </button>
+                <button 
+                  onClick={() => setOtpBuffer(prev => prev.slice(0, -1))}
+                  style={{
+                    height: '80px', borderRadius: '40px', border: 'none',
+                    background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'var(--grey)', cursor: 'pointer'
+                  }}
+                >
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"></path>
+                    <line x1="18" y1="9" x2="12" y2="15"></line>
+                    <line x1="12" y1="9" x2="18" y2="15"></line>
+                  </svg>
+                </button>
               </div>
-            )}
+
+              {isVerifying && <div style={{ marginTop: '30px', color: 'var(--accent)', fontWeight: 600 }}>Verifying code...</div>}
+            </div>
           </div>
         )}
 
