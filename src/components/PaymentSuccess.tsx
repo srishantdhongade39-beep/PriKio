@@ -32,16 +32,21 @@ export default function PaymentSuccess({
   const [countdown, setCountdown] = useState(redirectSeconds);
   const [copied, setCopied] = useState(false);
 
-  const now = new Date();
-  const dateStr = now.toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-  const timeStr = now.toLocaleTimeString("en-IN", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const [dateStr, setDateStr] = useState("");
+  const [timeStr, setTimeStr] = useState("");
+
+  useEffect(() => {
+    const now = new Date();
+    setDateStr(now.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }));
+    setTimeStr(now.toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }));
+  }, []);
 
   const prefersReduced =
     typeof window !== "undefined" &&
@@ -140,8 +145,8 @@ export default function PaymentSuccess({
       <div
         className="ps-wrap"
         style={{
-          position: "fixed",
-          inset: 0,
+          minHeight: "100vh",
+          width: "100%",
           zIndex: 9999,
           background: `
             radial-gradient(ellipse 55% 45% at 50% 36%,

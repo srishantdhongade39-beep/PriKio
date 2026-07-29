@@ -45,8 +45,8 @@ svg {
   --amber-s: #FFFBEB;
   --red: #EF4444;
   --red-s: #FEF2F2;
-  --serif: 'Cormorant Garamond', Georgia, serif;
-  --sans: 'DM Sans', system-ui, sans-serif;
+  --serif: 'Quicksand', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --sans: 'Quicksand', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-satoshi: 'Satoshi', sans-serif;
   --font-inter: 'Inter', sans-serif;
 }
@@ -160,8 +160,7 @@ html {
 .screen-title {
   font-family: var(--serif);
   font-size: 22px;
-  font-weight: 600;
-  font-style: italic;
+  font-weight: 700;
   color: var(--grey-dark);
   flex: 1;
   text-align: center;
@@ -568,21 +567,22 @@ html {
 
   .dlp-heading {
     font-family: var(--serif);
-    font-size: 2rem;
-    font-weight: 600;
-    line-height: 1.2;
+    font-size: clamp(32px, 4vw, 48px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
     color: #fff;
-    margin-bottom: 0.75rem;
+    margin-bottom: 16px;
     position: relative;
     z-index: 1;
   }
 
   .dlp-sub {
-    font-size: 0.95rem;
-    color: rgba(255, 255, 255, 0.55);
+    font-size: 16px;
+    color: #94a3b8;
     line-height: 1.6;
-    font-weight: 300;
-    max-width: 320px;
+    font-weight: 500;
+    max-width: 300px;
     position: relative;
     z-index: 1;
   }
@@ -1796,3 +1796,16 @@ footer {
   animation: shimmer 2s infinite linear;
   border-radius: 4px;
 }
+@keyframes smoothPageIn {
+  0% { opacity: 0; transform: translateY(12px) scale(0.995); filter: blur(4px); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+.desktop-right-panel,
+.phone-card,
+.up-right,
+.vk-right,
+.scan-root {
+  animation: smoothPageIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+

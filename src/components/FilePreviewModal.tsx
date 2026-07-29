@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { parsePageRangeToSet, formatSetToPageRange } from '@/lib/pageRangeUtils'
 import { PrintFile } from '@/store/usePrintStore'
+import { motion, AnimatePresence } from 'framer-motion'
 
 if (typeof window !== 'undefined') {
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -83,25 +84,28 @@ function PdfPageCanvas({ pdf, pageNum, selected, onToggle }: { pdf: any, pageNum
   }, [pdf, pageNum, isVisible])
 
   return (
-    <div 
+    <motion.div 
       ref={containerRef}
       onClick={() => onToggle(pageNum)}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: selected ? 1 : 0.85, y: 0 }}
+      whileHover={{ scale: 1.02, y: -4, boxShadow: '0 12px 32px rgba(26,35,64,0.12)' }}
+      transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
       style={{
-        border: '1px solid var(--border)',
-        borderRadius: '12px',
+        border: selected ? '2px solid var(--accent)' : '1px solid var(--border)',
+        borderRadius: '16px',
         overflow: 'hidden',
         position: 'relative',
         cursor: 'pointer',
-        opacity: selected ? 1 : 0.85,
         background: '#fff',
-        transition: 'all 0.2s',
         display: 'flex',
         flexDirection: 'column',
         width: '100%',
         maxWidth: '650px',
         minHeight: isLoaded ? 'auto' : '800px',
         margin: '0 auto',
-        boxShadow: selected ? '0 8px 24px rgba(26,35,64,0.15)' : '0 2px 8px rgba(0,0,0,0.05)'
+        boxShadow: selected ? '0 12px 32px rgba(74,95,193,0.25)' : '0 4px 12px rgba(0,0,0,0.05)',
+        transformOrigin: 'center'
       }}
     >
       {!isLoaded && (
@@ -118,15 +122,29 @@ function PdfPageCanvas({ pdf, pageNum, selected, onToggle }: { pdf: any, pageNum
       </div>
       
       {/* Checkbox indicator */}
-      {selected ? (
-        <div style={{ position: 'absolute', top: 12, right: 12, background: '#1a2340', color: '#fff', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(26,35,64,0.3)' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-        </div>
-      ) : (
-        <div style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(255,255,255,0.8)', border: '1.5px solid rgba(0,0,0,0.15)', borderRadius: '50%', width: '28px', height: '28px', transition: 'all 0.2s' }}>
-        </div>
-      )}
-    </div>
+      <AnimatePresence>
+        {selected ? (
+          <motion.div 
+            key="selected"
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+            style={{ position: 'absolute', top: 16, right: 16, background: 'var(--accent)', color: '#fff', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(74,95,193,0.4)', zIndex: 10 }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </motion.div>
+        ) : (
+          <motion.div 
+            key="unselected"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{ position: 'absolute', top: 16, right: 16, background: 'rgba(255,255,255,0.85)', border: '2px solid rgba(0,0,0,0.1)', borderRadius: '50%', width: '32px', height: '32px', zIndex: 10 }}
+          />
+        )}
+      </AnimatePresence>
+    </motion.div>
   )
 }
 
@@ -252,19 +270,38 @@ export default function FilePreviewModal({
                   typeof file.fileName === 'string' && /\.(jpg|jpeg|png|gif|webp)$/i.test(file.fileName)
 
   return (
-    <div className="modal-overlay" style={{ position: 'fixed', zIndex: 9999, inset: 0 }}>
-      <div className="modal-card" style={{ height: '90vh', maxWidth: '800px', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', margin: 'auto' }}>
+    <AnimatePresence>
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="modal-overlay" 
+        style={{ position: 'fixed', zIndex: 9999, inset: 0, background: 'rgba(13, 31, 60, 0.4)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', display: 'flex' }}
+      >
+        <motion.div 
+          initial={{ scale: 0.95, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.95, opacity: 0, y: 20 }}
+          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+          className="modal-card" 
+          style={{ height: '90vh', width: '100%', maxWidth: '800px', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', margin: 'auto', background: '#fff', borderRadius: '24px', boxShadow: '0 24px 64px rgba(0,0,0,0.2)' }}
+        >
         
-        <div style={{ padding: '16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff' }}>
-          <div style={{ fontWeight: 600, fontSize: '16px', color: 'var(--gd)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: '16px' }}>
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 20 }}>
+          <div style={{ fontWeight: 700, fontSize: '18px', color: 'var(--navy)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', paddingRight: '16px', letterSpacing: '-0.02em' }}>
             Preview: {file.fileName}
           </div>
-          <button onClick={onClose} style={{ background: 'var(--gl)', border: 'none', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gd)" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          </button>
+          <motion.button 
+            whileHover={{ scale: 1.05, background: '#f1f5f9' }}
+            whileTap={{ scale: 0.95 }}
+            onClick={onClose} 
+            style={{ background: 'var(--gl)', border: 'none', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, color: 'var(--navy)' }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </motion.button>
         </div>
 
-        <div id="pdf-scroll-container" style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '16px', background: 'var(--body-bg)' }}>
+        <div id="pdf-scroll-container" data-lenis-prevent="true" style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '16px', background: 'var(--body-bg)' }}>
           {pdf ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', alignItems: 'center', padding: '16px 0' }}>
               {Array.from({ length: pdf.numPages }, (_, i) => i + 1).map(pageNum => (
@@ -303,28 +340,34 @@ export default function FilePreviewModal({
           )}
         </div>
 
-        <div style={{ padding: '16px', borderTop: '1px solid var(--border)', background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: '13px', color: 'var(--grey-mid)' }}>
-            {selectedPages.size} {selectedPages.size === 1 ? 'page' : 'pages'} selected
+        <div style={{ padding: '20px 24px', borderTop: '1px solid var(--border)', background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', bottom: 0, zIndex: 20 }}>
+          <div style={{ fontSize: '14px', color: 'var(--grey-mid)', fontWeight: 500 }}>
+            <strong style={{ color: 'var(--navy)' }}>{selectedPages.size}</strong> {selectedPages.size === 1 ? 'page' : 'pages'} selected
           </div>
-          <button 
+          <motion.button 
+            whileHover={selectedPages.size > 0 ? { scale: 1.03 } : {}}
+            whileTap={selectedPages.size > 0 ? { scale: 0.97 } : {}}
             onClick={handleSave}
             disabled={selectedPages.size === 0}
             style={{
               background: selectedPages.size === 0 ? 'var(--grey)' : 'var(--navy)',
               color: '#fff',
               border: 'none',
-              padding: '12px 24px',
+              padding: '14px 28px',
               borderRadius: '9999px',
-              fontSize: '14px',
-              fontWeight: 600,
-              cursor: selectedPages.size === 0 ? 'not-allowed' : 'pointer'
+              fontSize: '15px',
+              fontWeight: 700,
+              letterSpacing: '-0.01em',
+              cursor: selectedPages.size === 0 ? 'not-allowed' : 'pointer',
+              boxShadow: selectedPages.size > 0 ? '0 8px 20px rgba(26,35,64,0.2)' : 'none',
+              transition: 'background 0.2s, color 0.2s, box-shadow 0.2s'
             }}
           >
             Save Selection
-          </button>
+          </motion.button>
         </div>
-      </div>
-    </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   )
 }

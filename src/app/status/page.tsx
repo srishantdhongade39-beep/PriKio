@@ -129,28 +129,12 @@ function StatusScreen() {
         .vk-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.15); transition: background 0.3s; }
         .vk-dot.active { background: #4a5fc1; box-shadow: 0 0 10px rgba(74,95,193,0.5); }
 
-        /* Right panel with ambient background */
+        /* Right panel */
         .vk-right {
-          flex: 1; background: #f8fafc;
+          flex: 1; background: #FFFFFF;
           display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
           padding: 0; overflow: hidden;
           position: relative;
-        }
-        
-        .vk-right::before {
-          content: ''; position: absolute; top: -10%; right: -10%; width: 50vw; height: 50vw;
-          background: radial-gradient(circle, rgba(43,78,170,0.06) 0%, rgba(255,255,255,0) 70%);
-          border-radius: 50%; pointer-events: none; animation: float 15s ease-in-out infinite alternate;
-        }
-        .vk-right::after {
-          content: ''; position: absolute; bottom: -10%; left: -10%; width: 40vw; height: 40vw;
-          background: radial-gradient(circle, rgba(16,185,129,0.05) 0%, rgba(255,255,255,0) 70%);
-          border-radius: 50%; pointer-events: none; animation: float 12s ease-in-out infinite alternate-reverse;
-        }
-        
-        @keyframes float {
-          0% { transform: translateY(0) translateX(0); }
-          100% { transform: translateY(-40px) translateX(30px); }
         }
         
         .vk-header-container {
@@ -163,8 +147,8 @@ function StatusScreen() {
         /* Main Content Card (Matching OrderReview Style) */
         .vk-card {
           background: #fff;
-          border-radius: 24px;
-          box-shadow: 0 -4px 32px rgba(26,35,64,0.05);
+          border-radius: 0;
+          box-shadow: none;
           width: min(440px, 100%);
           padding: 40px 32px;
           text-align: center;
@@ -303,12 +287,7 @@ function StatusScreen() {
           </svg>
           <h1 className="vk-left-title">Verify Kiosk</h1>
           <p className="vk-left-sub">Enter the code on the kiosk screen to authorize your print queue.</p>
-          <div className="vk-dots">
-            <div className="vk-dot active" />
-            <div className="vk-dot active" />
-            <div className="vk-dot active" />
-            <div className="vk-dot active" />
-          </div>
+
         </div>
 
         {/* Right content panel */}

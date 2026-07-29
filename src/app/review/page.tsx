@@ -42,7 +42,7 @@ export default function ReviewPage() {
           files: files.map(f => ({
             id: f.id,
             fileName: f.fileName,
-            storage_path: `${f.job_id}/${f.fileName}`,
+            storage_path: `${globalJobId}/${f.fileName}`,
             fileUrl: f.url,
             fileSizeMb: parseFloat(f.fileSizeMb),
             pageCount: f.pageCount,
@@ -87,12 +87,7 @@ export default function ReviewPage() {
         <p className="dlp-sub">Check your print settings and select your kiosk before payment.</p>
 
         <hr className="dlp-divider" />
-        <div className="dlp-dots">
-          <span className="dlp-dot active"></span>
-          <span className="dlp-dot active"></span>
-          <span className="dlp-dot active"></span>
-          <span className="dlp-dot"></span>
-        </div>
+
       </div>
 
       <div className="desktop-right-panel" style={{ padding: 0, overflow: 'hidden' }}>

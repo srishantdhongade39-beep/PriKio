@@ -86,6 +86,7 @@ export default function Payment() {
     <PaymentSuccess 
       amount={((printJob.total_amount_paise || 0) / 100).toFixed(2)}
       paymentId={printJob.id}
+      redirectSeconds={3}
       onRedirect={handleSimulateWebhookAndRedirect}
     />
   )

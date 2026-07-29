@@ -1,123 +1,134 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+// Helper for controlled concurrency
+async function mapConcurrent<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = [];
+  let i = 0;
+  const exec = async () => {
+    while (i < items.length) {
+      const index = i++;
+      results[index] = await fn(items[index]);
+    }
+  };
+  const workers = Array.from({ length: Math.min(limit, items.length) }, () => exec());
+  await Promise.all(workers);
+  return results;
+}
 
 export async function POST(request: Request) {
   try {
     const formData = await request.formData()
-    let file = formData.get('file') as File | null
+    const files = formData.getAll('files') as File[]
 
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+    if (!files || files.length === 0) {
+      return NextResponse.json({ error: 'No files provided' }, { status: 400 })
     }
 
     const supabase = await createClient()
     const jobId = crypto.randomUUID()
     
-    let buffer: ArrayBuffer | Buffer = await file.arrayBuffer()
-    let fileName = file.name
-    let fileType = file.type
-    const extension = fileName.split('.').pop()?.toLowerCase()
-
-    // Convert non-PDF files to PDF using ConvertAPI
-    // We check both the MIME type and the extension because some operating systems
-    // send incorrect MIME types (like application/octet-stream) for PDFs.
-    if (fileType !== 'application/pdf' && extension !== 'pdf') {
-      const convertApiKey = process.env.NODE_ENV === 'production' 
-        ? process.env.CONVERT_API_SECRET 
-        : (process.env.CONVERT_API_SANDBOX_SECRET || process.env.CONVERT_API_SECRET);
-        
-      if (!convertApiKey) {
-        return NextResponse.json({ error: 'ConvertAPI secret is not configured' }, { status: 500 });
-      }
-
-      const extension = fileName.split('.').pop()?.toLowerCase();
-      if (!extension) {
-        return NextResponse.json({ error: 'Cannot determine file extension for conversion' }, { status: 400 });
-      }
-
-      try {
+    // Process files with controlled concurrency of 3
+    const processedFiles = await mapConcurrent(files, 3, async (file) => {
+      let buffer: ArrayBuffer | Buffer = await file.arrayBuffer()
+      let fileName = file.name
+      let fileType = file.type
+      const extension = fileName.split('.').pop()?.toLowerCase()
+  
+      if (fileType !== 'application/pdf' && extension !== 'pdf') {
+        const convertApiKey = process.env.NODE_ENV === 'production' 
+          ? process.env.CONVERT_API_SECRET 
+          : (process.env.CONVERT_API_SANDBOX_SECRET || process.env.CONVERT_API_SECRET);
+          
+        if (!convertApiKey) {
+          throw new Error('ConvertAPI secret is not configured');
+        }
+  
+        if (!extension) {
+          throw new Error('Cannot determine file extension for conversion');
+        }
+  
         const uploadFormData = new FormData();
         uploadFormData.append('File', file, fileName);
-
+  
         const response = await fetch(`https://v2.convertapi.com/convert/${extension}/to/pdf?Secret=${convertApiKey}`, {
           method: 'POST',
           body: uploadFormData
         });
-
+  
         if (!response.ok) {
           const errText = await response.text();
           console.error('ConvertAPI Error:', errText);
           throw new Error('Conversion failed');
         }
-
+  
         const result = await response.json();
         const base64Data = result.Files[0].FileData;
         
-        // Next.js fetch (used by Supabase) can sometimes fail with raw Node Buffers.
-        // We convert the Node Buffer to a standard Web ArrayBuffer (which is what file.arrayBuffer() returns).
         const nodeBuf = Buffer.from(base64Data, 'base64');
         buffer = nodeBuf.buffer.slice(nodeBuf.byteOffset, nodeBuf.byteOffset + nodeBuf.byteLength);
         
-        // Update file name and type so the rest of the flow treats it as a PDF
         fileName = fileName.substring(0, fileName.lastIndexOf('.')) + '.pdf';
         fileType = 'application/pdf';
-      } catch (err) {
-        console.error('Conversion exception:', err);
-        return NextResponse.json({ error: 'Failed to convert file to PDF' }, { status: 500 });
       }
-    }
-
-    const storagePath = `${jobId}/${fileName}`
-
-    // Wrap the ArrayBuffer in a native Blob. 
-    // Supabase (and Next.js fetch) handles Blobs perfectly, whereas raw ArrayBuffers 
-    // from Node occasionally trigger 'fetch failed' in Vercel's environment.
-    const uploadBlob = new Blob([buffer], { type: fileType });
-
-    // 1. Upload to storage
-    const storageRes = await supabase.storage
-      .from('documents')
-      .upload(storagePath, uploadBlob, { 
-        upsert: true,
-        contentType: fileType
-      })
-
-    if (storageRes.error) {
-      console.error('Storage upload error:', storageRes.error)
-      return NextResponse.json({ error: 'Failed to upload file to storage: ' + storageRes.error.message }, { status: 500 })
-    }
-
-    // Determine total pages via simple PDF text matching (CPU bound, fast)
-    let pageCount = 1
-    if (fileType === 'application/pdf') {
-      const text = Buffer.from(buffer).toString('latin1')
-      const matches = text.match(/\/Type\s*\/Page\b/g)
-      if (matches && matches.length > 0) {
-        pageCount = matches.length
+  
+      const storagePath = `${jobId}/${fileName}`
+      const uploadBlob = new Blob([buffer], { type: fileType });
+  
+      const storageRes = await supabase.storage
+        .from('documents')
+        .upload(storagePath, uploadBlob, { 
+          upsert: true,
+          contentType: fileType
+        })
+  
+      if (storageRes.error) {
+        throw new Error('Failed to upload file to storage: ' + storageRes.error.message)
       }
-    }
+  
+      let pageCount = 1
+      if (fileType === 'application/pdf') {
+        const text = Buffer.from(buffer).toString('latin1')
+        const matches = text.match(/\/Type\s*\/Page\b/g)
+        if (matches && matches.length > 0) {
+          pageCount = matches.length
+        }
+      }
+      
+      const { data: signedUrlData } = await supabase.storage.from('documents').createSignedUrl(storagePath, 3600);
 
-    // 2. Create the print job record
+      return {
+        file_id: crypto.randomUUID(),
+        filename: fileName,
+        storage_path: storagePath,
+        pages_selected: 'All',
+        copies: 1,
+        color_mode: 'B&W',
+        paper_size: 'A4',
+        sides: 'Single',
+        subtotal_paise: 200,
+        page_count: pageCount,
+        url: signedUrlData?.signedUrl || ''
+      }
+    })
+
+    const totalPages = processedFiles.reduce((sum, f) => sum + f.page_count, 0)
+    
+    // Filter out UI-only props for the database
+    const dbFiles = processedFiles.map(f => {
+      const { page_count, url, ...rest } = f;
+      return rest;
+    })
+
     const jobRes = await supabase
       .from('print_jobs')
       .insert({
         id: jobId,
         session_id: crypto.randomUUID(), // temporary session ID
         status: 'pending',
-        files: [{
-          file_id: crypto.randomUUID(),
-          filename: fileName,
-          storage_path: storagePath,
-          pages_selected: 'All',
-          copies: 1,
-          color_mode: 'B&W',
-          paper_size: 'A4',
-          sides: 'Single',
-          subtotal_paise: 200
-        }],
-        total_amount_paise: 200,
-        estimated_seconds: 10 * pageCount
+        files: dbFiles,
+        total_amount_paise: dbFiles.length * 200,
+        estimated_seconds: 10 * totalPages
       })
 
     if (jobRes.error) {
@@ -125,9 +136,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to create job record: ' + jobRes.error.message }, { status: 500 })
     }
 
-    // 3. Create the OTP session ONLY AFTER the job is created (foreign key requirement)
     const otp = Math.floor(1000 + Math.random() * 9000).toString()
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString() // 15 mins validity
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString() 
 
     const otpRes = await supabase
       .from('otp_sessions')
@@ -142,19 +152,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to create OTP session: ' + otpRes.error.message }, { status: 500 })
     }
 
-    const { data: signedUrlData } = await supabase.storage.from('documents').createSignedUrl(storagePath, 3600);
-
     return NextResponse.json({
       job_id: jobId,
       otp: otp,
       expires_in: 900,
-      page_count: pageCount,
-      url: signedUrlData?.signedUrl || '',
-      filename: fileName
+      files: processedFiles
     })
 
   } catch (error: any) {
     console.error('Upload handler error:', error)
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 })
   }
 }

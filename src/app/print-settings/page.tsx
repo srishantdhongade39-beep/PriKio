@@ -55,11 +55,7 @@ export default function PrintSettings() {
         <p className="dlp-sub">Choose color mode, layout, and number of copies for your documents.</p>
 
         <hr className="dlp-divider" />
-        <div className="dlp-dots">
-          <span className="dlp-dot active"></span>
-          <span className="dlp-dot active"></span>
-          <span className="dlp-dot"></span>
-        </div>
+
       </div>
 
       <div className="desktop-right-panel" style={{ padding: 0, overflow: 'hidden' }}>

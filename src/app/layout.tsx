@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
+import LenisProvider from "@/providers/LenisProvider";
+import ProgressBarProvider from "@/providers/ProgressBarProvider";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -21,9 +23,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        <LenisProvider>
+          <ProgressBarProvider>
+            <AuthProvider>
+              {children}
+            </AuthProvider>
+          </ProgressBarProvider>
+        </LenisProvider>
       </body>
     </html>
   );

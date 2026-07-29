@@ -61,60 +61,83 @@ export default function UploadScreen() {
     if (files.length === 0) return
     setUploading(true)
     setUploadProgress(0)
-    setUploadIndex(1)
+    setUploadIndex(files.length) // No longer needed as a counter, just showing total
     abortControllerRef.current = new AbortController()
 
     try {
-      let completedCount = 0
-      const results = []
+      const formData = new FormData()
+      files.forEach(item => {
+        formData.append('files', item.file)
+      })
+
+      // Use XMLHttpRequest for actual byte-level network upload progress
+      const xhr = new XMLHttpRequest()
       
-      // Fake smooth progress while files are uploading
-      const interval = setInterval(() => {
-        setUploadProgress(prev => Math.min(prev + (100 / files.length) * 0.1, 95))
-      }, 200)
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          // Progress goes up to 95% during network upload, the remaining 5% is server processing
+          const p = (e.loaded / e.total) * 95
+          setUploadProgress(p)
+        }
+      })
 
-      for (let i = 0; i < files.length; i++) {
-        const item = files[i]
-        const formData = new FormData()
-        formData.append('file', item.file)
-
-        const response = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
-          signal: abortControllerRef.current?.signal
+      const responseData = await new Promise((resolve, reject) => {
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { 
+              resolve(JSON.parse(xhr.responseText)) 
+            } catch(err) { 
+              reject(new Error('Invalid response from server')) 
+            }
+          } else {
+            try { 
+              reject(new Error(JSON.parse(xhr.responseText).error)) 
+            } catch(err) { 
+              reject(new Error('Upload failed with status ' + xhr.status)) 
+            }
+          }
         })
+        xhr.addEventListener('error', () => reject(new Error('Network error during upload')))
+        xhr.addEventListener('abort', () => reject(new Error('AbortError')))
         
-        const result = await response.json()
-        if (!response.ok) throw new Error(result.error)
+        xhr.open('POST', '/api/upload')
+        
+        if (abortControllerRef.current) {
+          abortControllerRef.current.signal.addEventListener('abort', () => xhr.abort())
+        }
+        
+        xhr.send(formData)
+      })
 
-        completedCount++
-        setUploadIndex(Math.min(completedCount + 1, files.length))
-        setUploadProgress((completedCount / files.length) * 100)
-
-        results.push({ 
-          id: Math.random().toString(36).substring(7),
-          ...result,
-          fileName: result.filename || item.name,
-          fileSizeMb: item.size.replace(" MB", ""),
-          pageCount: result.page_count || 1,
-          pagesToPrint: item.pagesToPrint,
-          originalFile: item.file
-        })
-      }
-      
-      clearInterval(interval)
       setUploadProgress(100)
+
+      const result = responseData as any
       
-      usePrintStore.getState().setFiles(results)
-      if (results.length > 0) {
-        usePrintStore.getState().setJobData(results[0].job_id, results[0].otp)
+      // Match the server results with our local files array
+      const formattedResults = result.files.map((serverFile: any, index: number) => {
+        const originalItem = files[index];
+        return {
+          id: Math.random().toString(36).substring(7),
+          job_id: result.job_id,
+          otp: result.otp,
+          fileName: serverFile.filename,
+          fileSizeMb: originalItem.size.replace(" MB", ""),
+          pageCount: serverFile.page_count || 1,
+          pagesToPrint: originalItem.pagesToPrint,
+          url: serverFile.url,
+          originalFile: originalItem.file
+        }
+      })
+
+      usePrintStore.getState().setFiles(formattedResults)
+      if (formattedResults.length > 0) {
+        usePrintStore.getState().setJobData(result.job_id, result.otp)
       }
       
-      // Redirect to the print settings page to continue the UI flow
       router.push('/print-settings')
 
     } catch (err: any) {
-      if (err.name === 'AbortError') {
+      if (err.message === 'AbortError') {
         console.log('Upload cancelled')
       } else {
         console.error(err)
@@ -167,10 +190,11 @@ export default function UploadScreen() {
         .up-left-icon { font-size: 32px; margin-bottom: 20px; opacity: 0.7; }
         .up-left-title {
           font-family: 'Quicksand', sans-serif !important;
-          font-size: clamp(28px,3.5vw,42px); color: #fff;
-          margin-bottom: 16px; line-height: 1.2;
+          font-size: clamp(32px, 4vw, 48px); color: #fff;
+          font-weight: 800; letter-spacing: -0.02em;
+          margin-bottom: 16px; line-height: 1.1;
         }
-        .up-left-sub { font-size: 15px; color: #8892a4; line-height: 1.6; max-width: 280px; }
+        .up-left-sub { font-size: 16px; color: #94a3b8; line-height: 1.6; max-width: 300px; font-weight: 500; }
         .up-dots { display: flex; gap: 8px; margin-top: 48px; }
         .up-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.2); }
         .up-dot.active { background: #4a5fc1; }
@@ -525,11 +549,7 @@ export default function UploadScreen() {
           </svg>
           <h1 className="up-left-title">Upload Your Files</h1>
           <p className="up-left-sub">Select PDF, Office, Image, or Code files.</p>
-          <div className="up-dots">
-            <div className="up-dot active" />
-            <div className="up-dot" />
-            <div className="up-dot" />
-          </div>
+
         </div>
 
         {/* Right panel */}
