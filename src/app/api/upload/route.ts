@@ -17,9 +17,12 @@ export async function POST(request: Request) {
     let buffer: ArrayBuffer | Buffer = await file.arrayBuffer()
     let fileName = file.name
     let fileType = file.type
+    const extension = fileName.split('.').pop()?.toLowerCase()
 
     // Convert non-PDF files to PDF using ConvertAPI
-    if (fileType !== 'application/pdf') {
+    // We check both the MIME type and the extension because some operating systems
+    // send incorrect MIME types (like application/octet-stream) for PDFs.
+    if (fileType !== 'application/pdf' && extension !== 'pdf') {
       const convertApiKey = process.env.NODE_ENV === 'production' 
         ? process.env.CONVERT_API_SECRET 
         : (process.env.CONVERT_API_SANDBOX_SECRET || process.env.CONVERT_API_SECRET);
