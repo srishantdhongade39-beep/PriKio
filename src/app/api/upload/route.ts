@@ -14,10 +14,12 @@ export async function POST(request: Request) {
     const supabase = await createClient()
     const jobId = crypto.randomUUID()
     
-    let buffer = await file.arrayBuffer()
+    let buffer: ArrayBuffer | Buffer = await file.arrayBuffer()
+    let fileName = file.name
+    let fileType = file.type
 
     // Convert non-PDF files to PDF using ConvertAPI
-    if (file.type !== 'application/pdf') {
+    if (fileType !== 'application/pdf') {
       const convertApiKey = process.env.NODE_ENV === 'production' 
         ? process.env.CONVERT_API_SECRET 
         : (process.env.CONVERT_API_SANDBOX_SECRET || process.env.CONVERT_API_SECRET);
@@ -26,14 +28,14 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'ConvertAPI secret is not configured' }, { status: 500 });
       }
 
-      const extension = file.name.split('.').pop()?.toLowerCase();
+      const extension = fileName.split('.').pop()?.toLowerCase();
       if (!extension) {
         return NextResponse.json({ error: 'Cannot determine file extension for conversion' }, { status: 400 });
       }
 
       try {
         const uploadFormData = new FormData();
-        uploadFormData.append('File', file, file.name);
+        uploadFormData.append('File', file, fileName);
 
         const response = await fetch(`https://v2.convertapi.com/convert/${extension}/to/pdf?Secret=${convertApiKey}`, {
           method: 'POST',
@@ -51,27 +53,27 @@ export async function POST(request: Request) {
         buffer = Buffer.from(base64Data, 'base64');
         
         // Update file name and type so the rest of the flow treats it as a PDF
-        const newFileName = file.name.substring(0, file.name.lastIndexOf('.')) + '.pdf';
-        file = new File([buffer], newFileName, { type: 'application/pdf' });
+        fileName = fileName.substring(0, fileName.lastIndexOf('.')) + '.pdf';
+        fileType = 'application/pdf';
       } catch (err) {
         console.error('Conversion exception:', err);
         return NextResponse.json({ error: 'Failed to convert file to PDF' }, { status: 500 });
       }
     }
 
-    const storagePath = `${jobId}/${file.name}`
+    const storagePath = `${jobId}/${fileName}`
 
     // Start storage upload promise
     const storagePromise = supabase.storage
       .from('documents')
       .upload(storagePath, buffer, { 
         upsert: true,
-        contentType: file.type
+        contentType: fileType
       })
 
     // Determine total pages via simple PDF text matching (CPU bound, fast)
     let pageCount = 1
-    if (file.type === 'application/pdf') {
+    if (fileType === 'application/pdf') {
       const text = Buffer.from(buffer).toString('latin1')
       const matches = text.match(/\/Type\s*\/Page\b/g)
       if (matches && matches.length > 0) {
@@ -82,7 +84,7 @@ export async function POST(request: Request) {
     // Start job record promise
     const filesJson = [{
       file_id: crypto.randomUUID(),
-      filename: file.name,
+      filename: fileName,
       storage_path: storagePath,
       pages_selected: 'All',
       copies: 1,
