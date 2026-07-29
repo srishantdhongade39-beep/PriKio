@@ -36,6 +36,10 @@ export default function KioskPage() {
   const [rfidBuffer, setRfidBuffer] = useState('')
   const supabase = createClient()
 
+  const [showOtpPad, setShowOtpPad] = useState(false)
+  const [otpBuffer, setOtpBuffer] = useState('')
+  const [isVerifying, setIsVerifying] = useState(false)
+
   // Scaling logic
   useEffect(() => {
     const updateScale = () => {
@@ -54,10 +58,81 @@ export default function KioskPage() {
     return () => window.removeEventListener('resize', updateScale)
   }, [])
 
-  // Auto-bypass RFID for testing
+  // Keyboard listener for both RFID and laptop keyboard OTP entry
   useEffect(() => {
-    handleRfidTap('S12345')
-  }, [])
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // If we are in OTP mode, accept numbers from laptop keyboard
+      if (showOtpPad && !isVerifying) {
+        if (e.key === 'Backspace') {
+          setOtpBuffer(prev => prev.slice(0, -1))
+        } else if (/^[0-9]$/.test(e.key)) {
+          setOtpBuffer(prev => {
+            if (prev.length < 4) return prev + e.key
+            return prev
+          })
+        } else if (e.key === 'Enter' && otpBuffer.length === 4) {
+          handleOtpSubmit(otpBuffer)
+        }
+        return;
+      }
+
+      // Default RFID mode
+      if (e.key === 'Enter') {
+        if (rfidBuffer.length > 0 && rfidWaiting && !isOffline) {
+          handleRfidTap(rfidBuffer)
+          setRfidBuffer('')
+        }
+      } else if (e.key.length === 1 && rfidWaiting) {
+        setRfidBuffer((prev) => prev + e.key)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [rfidBuffer, rfidWaiting, isOffline, showOtpPad, otpBuffer, isVerifying])
+
+  // Automatically submit OTP when 4 digits are typed
+  useEffect(() => {
+    if (otpBuffer.length === 4 && showOtpPad && !isVerifying) {
+      handleOtpSubmit(otpBuffer)
+    }
+  }, [otpBuffer, showOtpPad, isVerifying])
+
+  const handleOtpSubmit = async (otp: string) => {
+    setIsVerifying(true)
+    try {
+      const res = await fetch('/api/kiosk/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ otp_entered: otp })
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        // Construct the single job returned by the verify API
+        const newJob: Job = {
+          id: data.job_id,
+          file_name: data.file_name,
+          page_count: data.page_count,
+          color_mode: data.color_mode,
+          sides: data.sides,
+          status: 'printing' // The API sets it to printing
+        }
+        setProfile(data.profile)
+        setJobs([newJob])
+        setRfidWaiting(false)
+        setShowOtpPad(false)
+        setPrintingPageIndex(1)
+      } else {
+        alert(data.message || 'Invalid OTP code')
+        setOtpBuffer('')
+      }
+    } catch (err) {
+      console.error(err)
+      alert('Network error')
+      setOtpBuffer('')
+    } finally {
+      setIsVerifying(false)
+    }
+  }
 
   const handleRfidTap = async (rfid: string) => {
     try {
@@ -85,6 +160,8 @@ export default function KioskPage() {
     setProfile(null)
     setJobs([])
     setRfidWaiting(true)
+    setShowOtpPad(false)
+    setOtpBuffer('')
   }
 
   // Realtime Subscription
@@ -184,7 +261,7 @@ export default function KioskPage() {
               <h3 style={{ fontSize: '32px', fontWeight: 600, color: 'var(--gd)', marginBottom: '8px' }}>
                 {profile ? profile.full_name : 'Guest'}
               </h3>
-              <p className="meta-text">{profile?.department} • Balance: ₹{profile?.wallet_balance}</p>
+              <p className="meta-text">{profile?.department} • Balance: ₹{profile?.wallet_balance || 0}</p>
             </div>
             <hr style={{ border: 'none', borderTop: '2px solid var(--border)', margin: '20px 0' }} />
             <div style={{ fontSize: '14px', fontWeight: 600, letterSpacing: '0.2em', color: 'var(--grey)', textTransform: 'uppercase', marginBottom: '-20px' }}>
@@ -279,26 +356,118 @@ export default function KioskPage() {
           </main>
         </div>
 
-        {/* RFID Welcome Overlay */}
+        {/* RFID & OTP Welcome Overlay */}
         {rfidWaiting && (
           <div className="overlay" style={{ background: 'rgba(255, 255, 255, 0.95)' }}>
-            <div className="hero-rings">
-              <div className="ring ring-1"></div>
-              <div className="ring ring-2"></div>
-              <div className="ring ring-3"></div>
-            </div>
-            <div className="rfid-graphic" onClick={() => handleRfidTap('S12345')}>
-              <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="5" width="20" height="14" rx="2"></rect>
-                <line x1="2" y1="10" x2="22" y2="10"></line>
-                <path d="M7 15h.01"></path>
-                <path d="M11 15h2"></path>
-              </svg>
-            </div>
-            <h1 className="hero">Tap your <i>ID Card</i></h1>
-            <p className="body-text" style={{ marginTop: '20px', textAlign: 'center' }}>
-              Place your Presidency University ID card<br />on the reader below to begin.
-            </p>
+            {!showOtpPad ? (
+              <>
+                <div className="hero-rings">
+                  <div className="ring ring-1"></div>
+                  <div className="ring ring-2"></div>
+                  <div className="ring ring-3"></div>
+                </div>
+                <div className="rfid-graphic" onClick={() => handleRfidTap('S12345')}>
+                  <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+                    <line x1="2" y1="10" x2="22" y2="10"></line>
+                    <path d="M7 15h.01"></path>
+                    <path d="M11 15h2"></path>
+                  </svg>
+                </div>
+                <h1 className="hero">Tap your <i>ID Card</i></h1>
+                <p className="body-text" style={{ marginTop: '20px', textAlign: 'center' }}>
+                  Place your Presidency University ID card<br />on the reader below to begin.
+                </p>
+                <button 
+                  onClick={() => setShowOtpPad(true)}
+                  className="btn-outline" 
+                  style={{ marginTop: '40px', background: 'white' }}
+                >
+                  Enter Code Manually
+                </button>
+              </>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', animation: 'fadeIn 0.3s ease' }}>
+                <h1 className="hero" style={{ marginBottom: '10px' }}>Enter <i>OTP Code</i></h1>
+                <p className="body-text" style={{ marginBottom: '40px' }}>Type the 4-digit code shown on your phone.</p>
+                
+                {/* OTP Input display */}
+                <div style={{ display: 'flex', gap: '20px', marginBottom: '50px' }}>
+                  {[0, 1, 2, 3].map((i) => (
+                    <div 
+                      key={i} 
+                      style={{ 
+                        width: '80px', height: '100px', 
+                        border: `3px solid ${otpBuffer.length === i ? 'var(--accent)' : 'var(--border)'}`, 
+                        borderRadius: '16px', 
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '48px', fontWeight: 600, color: 'var(--gd)',
+                        background: 'white',
+                        transition: 'border 0.2s ease'
+                      }}
+                    >
+                      {otpBuffer[i] || ''}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Numpad */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', width: '340px' }}>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                    <button 
+                      key={num}
+                      onClick={() => setOtpBuffer(prev => prev.length < 4 ? prev + num : prev)}
+                      style={{
+                        height: '80px', borderRadius: '40px', border: '1px solid var(--border)',
+                        background: 'white', fontSize: '32px', fontWeight: 500, color: 'var(--gd)',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {num}
+                    </button>
+                  ))}
+                  <button 
+                    onClick={() => {
+                      setShowOtpPad(false)
+                      setOtpBuffer('')
+                    }}
+                    style={{
+                      height: '80px', borderRadius: '40px', border: 'none',
+                      background: 'transparent', fontSize: '18px', fontWeight: 600, color: 'var(--grey)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={() => setOtpBuffer(prev => prev.length < 4 ? prev + '0' : prev)}
+                    style={{
+                      height: '80px', borderRadius: '40px', border: '1px solid var(--border)',
+                      background: 'white', fontSize: '32px', fontWeight: 500, color: 'var(--gd)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    0
+                  </button>
+                  <button 
+                    onClick={() => setOtpBuffer(prev => prev.slice(0, -1))}
+                    style={{
+                      height: '80px', borderRadius: '40px', border: 'none',
+                      background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: 'var(--grey)', cursor: 'pointer'
+                    }}
+                  >
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"></path>
+                      <line x1="18" y1="9" x2="12" y2="15"></line>
+                      <line x1="12" y1="9" x2="18" y2="15"></line>
+                    </svg>
+                  </button>
+                </div>
+
+                {isVerifying && <div style={{ marginTop: '30px', color: 'var(--accent)', fontWeight: 600 }}>Verifying code...</div>}
+              </div>
+            )}
           </div>
         )}
 

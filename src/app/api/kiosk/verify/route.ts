@@ -69,7 +69,14 @@ export async function POST(request: Request) {
       file_name: fileName,
       page_count: pageCount,
       color_mode: jobData.files?.[0]?.color_mode || 'B&W',
-      sides: jobData.files?.[0]?.sides || 'Single'
+      sides: jobData.files?.[0]?.sides || 'Single',
+      profile: {
+        id: 'guest-' + otp_entered,
+        full_name: 'Guest User',
+        student_id: 'GUEST',
+        department: 'Campus Print',
+        wallet_balance: 0
+      }
     })
 
   } catch (error: any) {
