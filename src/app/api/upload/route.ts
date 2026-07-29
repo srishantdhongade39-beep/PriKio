@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 export async function POST(request: Request) {
   try {
     const formData = await request.formData()
-    const file = formData.get('file') as File | null
+    let file = formData.get('file') as File | null
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
@@ -14,8 +14,52 @@ export async function POST(request: Request) {
     const supabase = await createClient()
     const jobId = crypto.randomUUID()
     
+    let buffer = await file.arrayBuffer()
+
+    // Convert non-PDF files to PDF using ConvertAPI
+    if (file.type !== 'application/pdf') {
+      const convertApiKey = process.env.NODE_ENV === 'production' 
+        ? process.env.CONVERT_API_SECRET 
+        : process.env.CONVERT_API_SANDBOX_SECRET;
+        
+      if (!convertApiKey) {
+        return NextResponse.json({ error: 'ConvertAPI secret is not configured' }, { status: 500 });
+      }
+
+      const extension = file.name.split('.').pop()?.toLowerCase();
+      if (!extension) {
+        return NextResponse.json({ error: 'Cannot determine file extension for conversion' }, { status: 400 });
+      }
+
+      try {
+        const uploadFormData = new FormData();
+        uploadFormData.append('File', file, file.name);
+
+        const response = await fetch(`https://v2.convertapi.com/convert/${extension}/to/pdf?Secret=${convertApiKey}`, {
+          method: 'POST',
+          body: uploadFormData
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          console.error('ConvertAPI Error:', errText);
+          throw new Error('Conversion failed');
+        }
+
+        const result = await response.json();
+        const base64Data = result.Files[0].FileData;
+        buffer = Buffer.from(base64Data, 'base64');
+        
+        // Update file name and type so the rest of the flow treats it as a PDF
+        const newFileName = file.name.substring(0, file.name.lastIndexOf('.')) + '.pdf';
+        file = new File([buffer], newFileName, { type: 'application/pdf' });
+      } catch (err) {
+        console.error('Conversion exception:', err);
+        return NextResponse.json({ error: 'Failed to convert file to PDF' }, { status: 500 });
+      }
+    }
+
     const storagePath = `${jobId}/${file.name}`
-    const buffer = await file.arrayBuffer()
 
     // Start storage upload promise
     const storagePromise = supabase.storage
