@@ -153,7 +153,8 @@ export default function FilePreviewModal({
     
     if (isPdf) {
       try {
-        if (file.originalFile) {
+        // If the local file is a native PDF, read it directly (instant)
+        if (file.originalFile && file.originalFile.type === 'application/pdf') {
           file.originalFile.arrayBuffer().then(buffer => {
             pdfjsLib.getDocument({ 
               data: buffer,
@@ -168,6 +169,25 @@ export default function FilePreviewModal({
             console.error(err)
             setErrorMsg('Failed to read file data.')
           })
+        } 
+        // Otherwise, if it was converted (like a PPTX), fetch the converted PDF from Supabase
+        else if (file.url) {
+          fetch(file.url)
+            .then(res => res.arrayBuffer())
+            .then(buffer => {
+              pdfjsLib.getDocument({ 
+                data: buffer,
+                cMapUrl: `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/cmaps/`,
+                cMapPacked: true,
+                standardFontDataUrl: `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/standard_fonts/`
+              }).promise.then(setPdf).catch(err => {
+                console.error(err)
+                setErrorMsg(err.message || 'Failed to load converted PDF.')
+              })
+            }).catch(err => {
+              console.error(err)
+              setErrorMsg('Failed to download converted PDF for preview.')
+            })
         }
       } catch (err: any) {
         console.error("Synchronous error starting PDF.js:", err);

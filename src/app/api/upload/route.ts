@@ -145,11 +145,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to create OTP session: ' + otpRes.error.message }, { status: 500 })
     }
 
+    const { data: signedUrlData } = await supabase.storage.from('documents').createSignedUrl(storagePath, 3600);
+
     return NextResponse.json({
       job_id: jobId,
       otp: otp,
       expires_in: 900,
-      page_count: pageCount
+      page_count: pageCount,
+      url: signedUrlData?.signedUrl || '',
+      filename: fileName
     })
 
   } catch (error: any) {

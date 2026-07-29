@@ -94,7 +94,7 @@ export default function UploadScreen() {
         results.push({ 
           id: Math.random().toString(36).substring(7),
           ...result,
-          fileName: item.name,
+          fileName: result.filename || item.name,
           fileSizeMb: item.size.replace(" MB", ""),
           pageCount: result.page_count || 1,
           pagesToPrint: item.pagesToPrint,
