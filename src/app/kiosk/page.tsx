@@ -54,21 +54,10 @@ export default function KioskPage() {
     return () => window.removeEventListener('resize', updateScale)
   }, [])
 
-  // RFID keydown listener
+  // Auto-bypass RFID for testing
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Enter') {
-        if (rfidBuffer.length > 0 && rfidWaiting && !isOffline) {
-          handleRfidTap(rfidBuffer)
-          setRfidBuffer('')
-        }
-      } else if (e.key.length === 1 && rfidWaiting) {
-        setRfidBuffer((prev) => prev + e.key)
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [rfidBuffer, rfidWaiting, isOffline])
+    handleRfidTap('S12345')
+  }, [])
 
   const handleRfidTap = async (rfid: string) => {
     try {
