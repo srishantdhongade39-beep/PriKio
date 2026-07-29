@@ -92,7 +92,15 @@ export default function KioskPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ otp_entered: otp })
       })
-      const data = await res.json()
+      
+      const text = await res.text()
+      let data;
+      try {
+        data = JSON.parse(text)
+      } catch (e) {
+        throw new Error(`Server returned non-JSON (${res.status}): ${text.substring(0, 50)}...`)
+      }
+
       if (res.ok && data.success) {
         // Construct the single job returned by the verify API
         const newJob: Job = {
@@ -112,9 +120,9 @@ export default function KioskPage() {
         alert(data.message || 'Invalid OTP code')
         setOtpBuffer('')
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      alert('Network error')
+      alert(`API Error: ${err.message || 'Network error'}`)
       setOtpBuffer('')
     } finally {
       setIsVerifying(false)
