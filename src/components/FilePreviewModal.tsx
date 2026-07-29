@@ -11,6 +11,7 @@ function PdfPageCanvas({ pdf, pageNum, selected, onToggle }: { pdf: any, pageNum
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [isVisible, setIsVisible] = useState(pageNum <= 2)
+  const [isLoaded, setIsLoaded] = useState(false)
 
   useEffect(() => {
     if (isVisible) return; // already visible
@@ -53,19 +54,26 @@ function PdfPageCanvas({ pdf, pageNum, selected, onToggle }: { pdf: any, pageNum
       if (!canvas) return
       const context = canvas.getContext('2d')
       if (!context) return
+      
       canvas.height = viewport.height
       canvas.width = viewport.width
-      canvas.style.aspectRatio = `${viewport.width} / ${viewport.height}`;
+      
+      // Reset transform and clear to fix React Strict Mode double-render glitches
+      context.setTransform(1, 0, 0, 1, 0, 0)
+      context.clearRect(0, 0, canvas.width, canvas.height)
 
       const renderContext = {
         canvasContext: context,
         viewport: viewport
       }
       renderTask = page.render(renderContext)
-      renderTask.promise.catch((err: any) => {
+      renderTask.promise.then(() => {
+        setIsLoaded(true)
+      }).catch((err: any) => {
         // Ignore task cancellation errors, log others
         if (err.name !== 'RenderingCancelledException') {
           console.error(`Error rendering page ${pageNum}:`, err)
+          setIsLoaded(true) // still reveal canvas so user can see it's blank or error
         }
       })
     })
@@ -91,12 +99,20 @@ function PdfPageCanvas({ pdf, pageNum, selected, onToggle }: { pdf: any, pageNum
         flexDirection: 'column',
         width: '100%',
         maxWidth: '650px',
-        minHeight: '400px',
+        minHeight: isLoaded ? 'auto' : '800px',
         margin: '0 auto',
         boxShadow: selected ? '0 8px 24px rgba(26,35,64,0.15)' : '0 2px 8px rgba(0,0,0,0.05)'
       }}
     >
-      <canvas ref={canvasRef} style={{ width: '100%', maxWidth: '100%', display: 'block' }} />
+      {!isLoaded && (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', color: 'var(--grey)' }}>
+          <div className="spinner" style={{ width: '32px', height: '32px', border: '3px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+          <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+        </div>
+      )}
+      
+      <canvas ref={canvasRef} style={{ width: '100%', height: 'auto', display: isLoaded ? 'block' : 'none' }} />
+      
       <div style={{ position: 'absolute', bottom: 12, left: 12, background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: '14px', fontWeight: 600, padding: '4px 10px', borderRadius: '6px' }}>
         Page {pageNum}
       </div>
