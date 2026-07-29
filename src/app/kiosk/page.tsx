@@ -358,24 +358,33 @@ export default function KioskPage() {
 
         {/* OTP Welcome Overlay */}
         {rfidWaiting && (
-          <div className="overlay" style={{ background: 'rgba(255, 255, 255, 0.95)' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', animation: 'fadeIn 0.3s ease' }}>
-              <h1 className="hero" style={{ marginBottom: '10px' }}>Enter <i>OTP Code</i></h1>
-              <p className="body-text" style={{ marginBottom: '40px' }}>Type the 4-digit code shown on your phone.</p>
+          <div className="overlay" style={{ background: 'rgba(236, 238, 242, 0.95)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', animation: 'fadeIn 0.4s ease', padding: '60px 80px', background: 'white', borderRadius: '32px', boxShadow: '0 20px 40px rgba(0,0,0,0.08)' }}>
+              
+              <div style={{ width: '80px', height: '80px', borderRadius: '40px', background: '#F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' }}>
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+              </div>
+
+              <h1 style={{ fontFamily: 'var(--serif), Georgia, serif', fontSize: '3rem', fontWeight: 600, color: 'var(--gd)', margin: '0 0 16px 0' }}>Verify Your Job</h1>
+              <p style={{ fontSize: '1.25rem', color: 'var(--grey)', margin: '0 0 48px 0', textAlign: 'center', lineHeight: 1.5 }}>Please type the 4-digit code shown<br/>on your phone screen.</p>
               
               {/* OTP Input display */}
-              <div style={{ display: 'flex', gap: '20px', marginBottom: '50px' }}>
+              <div style={{ display: 'flex', gap: '24px', marginBottom: '10px' }}>
                 {[0, 1, 2, 3].map((i) => (
                   <div 
                     key={i} 
                     style={{ 
-                      width: '80px', height: '100px', 
+                      width: '100px', height: '120px', 
                       border: `3px solid ${otpBuffer.length === i ? 'var(--accent)' : 'var(--border)'}`, 
-                      borderRadius: '16px', 
+                      borderRadius: '24px', 
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '48px', fontWeight: 600, color: 'var(--gd)',
-                      background: 'white',
-                      transition: 'border 0.2s ease'
+                      fontSize: '56px', fontWeight: 600, color: 'var(--gd)',
+                      background: otpBuffer.length === i ? '#F8FAFC' : 'white',
+                      boxShadow: otpBuffer.length === i ? '0 0 0 4px rgba(74, 95, 193, 0.1)' : 'none',
+                      transition: 'all 0.2s ease'
                     }}
                   >
                     {otpBuffer[i] || ''}
@@ -383,50 +392,7 @@ export default function KioskPage() {
                 ))}
               </div>
 
-              {/* Numpad */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', width: '340px' }}>
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-                  <button 
-                    key={num}
-                    onClick={() => setOtpBuffer(prev => prev.length < 4 ? prev + num : prev)}
-                    style={{
-                      height: '80px', borderRadius: '40px', border: '1px solid var(--border)',
-                      background: 'white', fontSize: '32px', fontWeight: 500, color: 'var(--gd)',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {num}
-                  </button>
-                ))}
-                {/* Empty cell for layout */}
-                <div></div>
-                <button 
-                  onClick={() => setOtpBuffer(prev => prev.length < 4 ? prev + '0' : prev)}
-                  style={{
-                    height: '80px', borderRadius: '40px', border: '1px solid var(--border)',
-                    background: 'white', fontSize: '32px', fontWeight: 500, color: 'var(--gd)',
-                    cursor: 'pointer'
-                  }}
-                >
-                  0
-                </button>
-                <button 
-                  onClick={() => setOtpBuffer(prev => prev.slice(0, -1))}
-                  style={{
-                    height: '80px', borderRadius: '40px', border: 'none',
-                    background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: 'var(--grey)', cursor: 'pointer'
-                  }}
-                >
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"></path>
-                    <line x1="18" y1="9" x2="12" y2="15"></line>
-                    <line x1="12" y1="9" x2="18" y2="15"></line>
-                  </svg>
-                </button>
-              </div>
-
-              {isVerifying && <div style={{ marginTop: '30px', color: 'var(--accent)', fontWeight: 600 }}>Verifying code...</div>}
+              {isVerifying && <div style={{ marginTop: '30px', color: 'var(--accent)', fontSize: '1.2rem', fontWeight: 600 }}>Verifying code...</div>}
             </div>
           </div>
         )}
