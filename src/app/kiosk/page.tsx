@@ -36,7 +36,6 @@ export default function KioskPage() {
   const [rfidBuffer, setRfidBuffer] = useState('')
   const supabase = createClient()
 
-  const [showOtpPad, setShowOtpPad] = useState(false)
   const [otpBuffer, setOtpBuffer] = useState('')
   const [isVerifying, setIsVerifying] = useState(false)
 
@@ -58,11 +57,10 @@ export default function KioskPage() {
     return () => window.removeEventListener('resize', updateScale)
   }, [])
 
-  // Keyboard listener for both RFID and laptop keyboard OTP entry
+  // Keyboard listener for laptop keyboard OTP entry
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // If we are in OTP mode, accept numbers from laptop keyboard
-      if (showOtpPad && !isVerifying) {
+      if (rfidWaiting && !isVerifying) {
         if (e.key === 'Backspace') {
           setOtpBuffer(prev => prev.slice(0, -1))
         } else if (/^[0-9]$/.test(e.key)) {
@@ -73,29 +71,18 @@ export default function KioskPage() {
         } else if (e.key === 'Enter' && otpBuffer.length === 4) {
           handleOtpSubmit(otpBuffer)
         }
-        return;
-      }
-
-      // Default RFID mode
-      if (e.key === 'Enter') {
-        if (rfidBuffer.length > 0 && rfidWaiting && !isOffline) {
-          handleRfidTap(rfidBuffer)
-          setRfidBuffer('')
-        }
-      } else if (e.key.length === 1 && rfidWaiting) {
-        setRfidBuffer((prev) => prev + e.key)
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [rfidBuffer, rfidWaiting, isOffline, showOtpPad, otpBuffer, isVerifying])
+  }, [rfidWaiting, isVerifying, otpBuffer])
 
   // Automatically submit OTP when 4 digits are typed
   useEffect(() => {
-    if (otpBuffer.length === 4 && showOtpPad && !isVerifying) {
+    if (otpBuffer.length === 4 && rfidWaiting && !isVerifying) {
       handleOtpSubmit(otpBuffer)
     }
-  }, [otpBuffer, showOtpPad, isVerifying])
+  }, [otpBuffer, rfidWaiting, isVerifying])
 
   const handleOtpSubmit = async (otp: string) => {
     setIsVerifying(true)
