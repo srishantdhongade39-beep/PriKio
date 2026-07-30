@@ -9,6 +9,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'Invalid OTP format' }, { status: 400 })
     }
 
+    // Bypass check for local testing with dummy/empty Supabase URL
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    if (supabaseUrl.includes('dummy') || !supabaseUrl) {
+      return NextResponse.json({
+        success: true,
+        message: 'Verified successfully (Mock Mode)',
+        job_id: 'mock-job-id',
+        files: [
+          { file_id: '1', filename: 'CS301_Assignment.pdf', page_count: 3, copies: 1, color_mode: 'B&W', sides: 'Double' },
+          { file_id: '2', filename: 'Reference_Material.pdf', page_count: 5, copies: 2, color_mode: 'Color', sides: 'Single' },
+          { file_id: '3', filename: 'Receipt_Kiosk.png', page_count: 1, copies: 1, color_mode: 'B&W', sides: 'Single' }
+        ]
+      })
+    }
+
     const supabase = await createClient()
 
     // Find the OTP session
@@ -53,31 +68,22 @@ export async function POST(request: Request) {
 
     // Return success to the kiosk display
     const jobData = session.print_jobs
-    let fileName = "Document"
-    let pageCount = 1
-    let colorMode = 'B&W'
-    let sides = 'Single'
     
-    if (jobData) {
-      // PostgREST might return an array for relationships depending on schema
-      const actualJob = Array.isArray(jobData) ? jobData[0] : jobData;
-      
-      if (actualJob && actualJob.files && actualJob.files.length > 0) {
-        fileName = actualJob.files[0].filename || "Document"
-        pageCount = actualJob.files.length
-        colorMode = actualJob.files[0].color_mode || 'B&W'
-        sides = actualJob.files[0].sides || 'Single'
-      }
-    }
+    const actualJob = Array.isArray(jobData) ? jobData[0] : jobData;
+    const filesArray = (actualJob && Array.isArray(actualJob.files)) ? actualJob.files.map((f: any) => ({
+      file_id: f.file_id || '1',
+      filename: f.filename || 'Document.pdf',
+      page_count: f.bw_pages + f.color_pages || f.page_count || 1,
+      copies: f.copies || 1,
+      color_mode: f.color_mode || 'B&W',
+      sides: f.sides || 'Single'
+    })) : []
 
     return NextResponse.json({
       success: true,
       message: 'Verified successfully',
       job_id: printJobId,
-      file_name: fileName,
-      page_count: pageCount,
-      color_mode: colorMode,
-      sides: sides,
+      files: filesArray,
       profile: {
         id: 'guest-' + otp_entered,
         full_name: 'Guest User',

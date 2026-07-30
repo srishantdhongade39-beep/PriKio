@@ -8,7 +8,7 @@ import { usePrintStore } from '@/store/usePrintStore'
 function StatusScreen() {
   const router = useRouter()
   
-  const { globalOtp, globalJobId } = usePrintStore()
+  const { globalOtp, globalJobId, clearFiles } = usePrintStore()
   
   const [timeLeft, setTimeLeft] = useState(300)
   const [showOTP, setShowOTP] = useState(false)
@@ -81,6 +81,19 @@ function StatusScreen() {
 
   const otpDigits = globalOtp ? globalOtp.split("") : ["-","-","-","-"];
   const isPrinting = jobStatus === 'verified' || jobStatus === 'printing';
+  const isCompleted = jobStatus === 'completed';
+
+  useEffect(() => {
+    if (isCompleted) {
+      const timer = setTimeout(() => {
+        clearFiles()
+        sessionStorage.removeItem('printJobId')
+        sessionStorage.removeItem('printJobData')
+        router.push('/')
+      }, 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [isCompleted, router, clearFiles])
 
   return (
     <>
@@ -165,26 +178,97 @@ function StatusScreen() {
         }
         .vk-btn-primary {
           width: 100%; padding: 14px; border-radius: 50px;
-          background: #1a2340; color: #fff; border: none;
+          background: linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.05) 50%, rgba(0, 0, 0, 0.05) 50%, rgba(0, 0, 0, 0.15) 100%), #1a2340;
+          color: #fff; border: 1px solid rgba(26, 35, 64, 0.8);
           font-size: 15px; font-weight: 600; cursor: pointer;
           display: flex; align-items: center; justify-content: center; gap: 8px;
-          margin-bottom: 12px; transition: opacity 0.2s;
+          margin-bottom: 12px;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(0, 0, 0, 0.2), 0 4px 12px rgba(26, 35, 64, 0.15);
+          transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s, background 0.2s;
+          position: relative;
+          overflow: hidden;
         }
-        .vk-btn-primary:hover { opacity: 0.88; }
+        .vk-btn-primary:hover {
+          transform: translateY(-2px) scale(1.02);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(0, 0, 0, 0.15), 0 8px 20px rgba(26, 35, 64, 0.2);
+        }
+        .vk-btn-primary:active {
+          transform: translateY(0) scale(0.98);
+          box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(26, 35, 64, 0.1);
+        }
+        .vk-btn-primary::after {
+          content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+          transform: skewX(-20deg);
+        }
+        .vk-btn-primary:hover::after {
+          left: 150%; transition: left 0.7s ease-in-out;
+        }
+
         .vk-btn-regen {
           width: 100%; padding: 14px; border-radius: 50px;
-          background: #1a2340; color: #fff; border: none;
+          background: linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.05) 50%, rgba(0, 0, 0, 0.05) 50%, rgba(0, 0, 0, 0.15) 100%), #1a2340;
+          color: #fff; border: 1px solid rgba(26, 35, 64, 0.8);
           font-size: 15px; font-weight: 600; cursor: pointer;
-          transition: opacity 0.2s;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(0, 0, 0, 0.2), 0 4px 12px rgba(26, 35, 64, 0.15);
+          transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s, background 0.2s;
+          position: relative; overflow: hidden;
         }
-        .vk-btn-regen:hover { opacity: 0.88; }
+        .vk-btn-regen:hover {
+          transform: translateY(-2px) scale(1.02);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(0, 0, 0, 0.15), 0 8px 20px rgba(26, 35, 64, 0.2);
+        }
+        .vk-btn-regen:active {
+          transform: translateY(0) scale(0.98);
+          box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(26, 35, 64, 0.1);
+        }
+        .vk-btn-regen::after {
+          content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+          transform: skewX(-20deg);
+        }
+        .vk-btn-regen:hover::after {
+          left: 150%; transition: left 0.7s ease-in-out;
+        }
+
         .vk-btn-secondary {
           width: 100%; padding: 14px; border-radius: 50px;
-          background: #f0f1f7; color: #1a2340; border: none;
+          background: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.2) 50%, rgba(0, 0, 0, 0.01) 50%, rgba(0, 0, 0, 0.05) 100%), #f0f1f7;
+          color: #1a2340; border: 1px solid rgba(240, 241, 247, 0.8);
           font-size: 15px; font-weight: 700; cursor: pointer;
-          transition: background 0.2s;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), inset 0 -1px 0 rgba(0, 0, 0, 0.05), 0 4px 10px rgba(0, 0, 0, 0.05);
+          transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s, background 0.2s;
+          position: relative; overflow: hidden;
         }
-        .vk-btn-secondary:hover { background: #e2e4ef; }
+        .vk-btn-secondary:hover {
+          background: linear-gradient(180deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.3) 50%, rgba(0, 0, 0, 0.02) 50%, rgba(0, 0, 0, 0.07) 100%), #e2e4ef;
+          transform: translateY(-2px) scale(1.02);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 rgba(0, 0, 0, 0.07), 0 8px 16px rgba(26, 35, 64, 0.08);
+        }
+        .vk-btn-secondary:active {
+          transform: translateY(0) scale(0.98);
+          box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(26, 35, 64, 0.03);
+        }
+        .vk-btn-secondary::after {
+          content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+          transform: skewX(-20deg);
+        }
+        .vk-btn-secondary:hover::after {
+          left: 150%; transition: left 0.7s ease-in-out;
+        }
+
+        .vk-otp-digit-box {
+           width: 64px; height: 76px; background: #f5f6ff; border-radius: 16px;
+           display: flex; align-items: center; justify-content: center;
+           font-size: 42px; font-weight: 700; color: #1a2340; border: 2px solid #e2e4ef;
+           transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s, box-shadow 0.2s;
+        }
+        .vk-otp-digit-box:hover {
+           transform: translateY(-4px) scale(1.05);
+           border-color: #4a5fc1;
+           box-shadow: 0 8px 20px rgba(74, 95, 193, 0.15);
+        }
         
         .vk-sheet-overlay {
            position: absolute; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
@@ -280,14 +364,30 @@ function StatusScreen() {
       <div className="vk-root">
         {/* Left info panel */}
         <div className="vk-left">
-          <div className="vk-badge"><div className="vk-badge-dot" /> OTP — ACTIVE</div>
+          <div className="vk-badge">
+            <div className="vk-badge-dot" style={{ background: isCompleted ? '#10b981' : isPrinting ? '#3b82f6' : '#22c55e' }} />
+            {isCompleted ? 'PRINT COMPLETED' : isPrinting ? 'PRINTING IN PROGRESS' : 'OTP — ACTIVE'}
+          </div>
           <svg className="vk-left-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: '40px', height: '40px', color: 'rgba(255,255,255,0.9)' }}>
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
             <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
           </svg>
-          <h1 className="vk-left-title">Verify Kiosk</h1>
-          <p className="vk-left-sub">Enter the code on the kiosk screen to authorize your print queue.</p>
-
+          <h1 className="vk-left-title">
+            {isCompleted ? 'Thank You!' : isPrinting ? 'Printing' : 'Verify Kiosk'}
+          </h1>
+          <p className="vk-left-sub">
+            {isCompleted 
+              ? 'Your document has been printed. You can collect your papers from the kiosk output tray.' 
+              : isPrinting 
+              ? 'Your print job is being processed by the kiosk printer. Please wait.' 
+              : 'Enter the code on the kiosk screen to authorize your print queue.'}
+          </p>
+          <div className="vk-dots">
+            <div className="vk-dot active" />
+            <div className="vk-dot active" />
+            <div className="vk-dot active" />
+            <div className="vk-dot active" />
+          </div>
         </div>
 
         {/* Right content panel */}
@@ -297,7 +397,31 @@ function StatusScreen() {
           </div>
           
           <div className="vk-card">
-            {isPrinting ? (
+            {isCompleted ? (
+              <div className="hardware-sync-container" style={{ flex: 1, width: '100%' }}>
+                <div className="pulse-circle" style={{ background: '#10b981', animation: 'none' }}>
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </div>
+                <h2 className="vk-card-title">Printing Completed!</h2>
+                <p style={{ color: '#8892a4', fontSize: '14px', marginBottom: '32px', maxWidth: '280px' }}>
+                  Your document has been printed successfully. Thank you for using CampusPrint!
+                </p>
+                <button 
+                  className="vk-btn-primary" 
+                  onClick={() => {
+                    clearFiles();
+                    sessionStorage.removeItem('printJobId');
+                    sessionStorage.removeItem('printJobData');
+                    router.push('/');
+                  }} 
+                  style={{ marginTop: 'auto' }}
+                >
+                  Return Home
+                </button>
+              </div>
+            ) : isPrinting ? (
               <div className="hardware-sync-container" style={{ flex: 1, width: '100%' }}>
                 <div className="pulse-circle">
                   <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -308,7 +432,18 @@ function StatusScreen() {
                 <p style={{ color: '#8892a4', fontSize: '14px', marginBottom: '32px', maxWidth: '280px' }}>
                   The hardware has synced successfully. Your document is now printing.
                 </p>
-                <button className="vk-btn-secondary" onClick={() => router.push('/')} style={{ marginTop: 'auto' }}>Return Home</button>
+                <button 
+                  className="vk-btn-secondary" 
+                  onClick={() => {
+                    clearFiles();
+                    sessionStorage.removeItem('printJobId');
+                    sessionStorage.removeItem('printJobData');
+                    router.push('/');
+                  }} 
+                  style={{ marginTop: 'auto' }}
+                >
+                  Return Home
+                </button>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%' }}>
@@ -329,14 +464,34 @@ function StatusScreen() {
 
                 <div style={{ display: 'flex', flexDirection: 'column', marginTop: 'auto', paddingTop: '20px' }}>
                   {expired ? (
-                    <button className="vk-btn-secondary" onClick={() => router.push('/')}>Return Home</button>
+                    <button 
+                      className="vk-btn-secondary" 
+                      onClick={() => {
+                        clearFiles();
+                        sessionStorage.removeItem('printJobId');
+                        sessionStorage.removeItem('printJobData');
+                        router.push('/');
+                      }}
+                    >
+                      Return Home
+                    </button>
                   ) : (
                     <>
                       <button className="vk-btn-primary" onClick={() => setShowOTP(true)}>
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                         View OTP Code
                       </button>
-                      <button className="vk-btn-secondary" onClick={() => router.push('/')}>Return Home</button>
+                      <button 
+                        className="vk-btn-secondary" 
+                        onClick={() => {
+                          clearFiles();
+                          sessionStorage.removeItem('printJobId');
+                          sessionStorage.removeItem('printJobData');
+                          router.push('/');
+                        }}
+                      >
+                        Return Home
+                      </button>
                     </>
                   )}
                 </div>
@@ -344,7 +499,7 @@ function StatusScreen() {
             )}
 
             {/* Bottom Sheet for OTP */}
-            {!isPrinting && (
+            {!isPrinting && !isCompleted && (
               <>
                 <div 
                   className={`vk-sheet-overlay ${showOTP ? 'open' : ''}`}
@@ -359,7 +514,7 @@ function StatusScreen() {
                   
                   <div style={{ display: 'flex', justifyContent: 'center', gap: 'clamp(12px,3vw,20px)', marginBottom: '40px' }}>
                     {otpDigits.map((d, i) => (
-                      <div key={i} style={{ width: '64px', height: '76px', background: '#f5f6ff', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '42px', fontWeight: 700, color: '#1a2340', border: '2px solid #e2e4ef' }}>
+                      <div key={i} className="vk-otp-digit-box">
                         {d}
                       </div>
                     ))}
