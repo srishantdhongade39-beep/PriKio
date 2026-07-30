@@ -58,8 +58,8 @@ export default function PrintSettings() {
 
       </div>
 
-      <div className="desktop-right-panel" style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%', height: '100%' }}>
+      <div className="desktop-right-panel" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%', height: '100%', minHeight: 0 }}>
           <PrintSettingsCard
             files={files as any}
             onConfirm={handleConfirmPay}
