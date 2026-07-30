@@ -76,7 +76,8 @@ export async function POST(request: Request) {
       page_count: f.bw_pages + f.color_pages || f.page_count || 1,
       copies: f.copies || 1,
       color_mode: f.color_mode || 'B&W',
-      sides: f.sides || 'Single'
+      sides: f.sides || 'Single',
+      storage_path: f.storage_path
     })) : []
 
     return NextResponse.json({

@@ -178,84 +178,49 @@ function StatusScreen() {
         }
         .vk-btn-primary {
           width: 100%; padding: 14px; border-radius: 50px;
-          background: linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.05) 50%, rgba(0, 0, 0, 0.05) 50%, rgba(0, 0, 0, 0.15) 100%), #1a2340;
+          background: #1a2340;
           color: #fff; border: 1px solid rgba(26, 35, 64, 0.8);
           font-size: 15px; font-weight: 600; cursor: pointer;
           display: flex; align-items: center; justify-content: center; gap: 8px;
           margin-bottom: 12px;
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(0, 0, 0, 0.2), 0 4px 12px rgba(26, 35, 64, 0.15);
-          transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s, background 0.2s;
-          position: relative;
-          overflow: hidden;
+          transition: transform 0.2s, background-color 0.2s;
         }
         .vk-btn-primary:hover {
-          transform: translateY(-2px) scale(1.02);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(0, 0, 0, 0.15), 0 8px 20px rgba(26, 35, 64, 0.2);
+          background-color: #2b3a67;
+          transform: translateY(-2px);
         }
         .vk-btn-primary:active {
-          transform: translateY(0) scale(0.98);
-          box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(26, 35, 64, 0.1);
-        }
-        .vk-btn-primary::after {
-          content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
-          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
-          transform: skewX(-20deg);
-        }
-        .vk-btn-primary:hover::after {
-          left: 150%; transition: left 0.7s ease-in-out;
+          transform: translateY(0);
         }
 
         .vk-btn-regen {
           width: 100%; padding: 14px; border-radius: 50px;
-          background: linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.05) 50%, rgba(0, 0, 0, 0.05) 50%, rgba(0, 0, 0, 0.15) 100%), #1a2340;
+          background: #1a2340;
           color: #fff; border: 1px solid rgba(26, 35, 64, 0.8);
           font-size: 15px; font-weight: 600; cursor: pointer;
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(0, 0, 0, 0.2), 0 4px 12px rgba(26, 35, 64, 0.15);
-          transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s, background 0.2s;
-          position: relative; overflow: hidden;
+          transition: transform 0.2s, background-color 0.2s;
         }
         .vk-btn-regen:hover {
-          transform: translateY(-2px) scale(1.02);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), inset 0 -1px 0 rgba(0, 0, 0, 0.15), 0 8px 20px rgba(26, 35, 64, 0.2);
+          background-color: #2b3a67;
+          transform: translateY(-2px);
         }
         .vk-btn-regen:active {
-          transform: translateY(0) scale(0.98);
-          box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(26, 35, 64, 0.1);
-        }
-        .vk-btn-regen::after {
-          content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
-          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
-          transform: skewX(-20deg);
-        }
-        .vk-btn-regen:hover::after {
-          left: 150%; transition: left 0.7s ease-in-out;
+          transform: translateY(0);
         }
 
         .vk-btn-secondary {
           width: 100%; padding: 14px; border-radius: 50px;
-          background: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.2) 50%, rgba(0, 0, 0, 0.01) 50%, rgba(0, 0, 0, 0.05) 100%), #f0f1f7;
+          background: #f0f1f7;
           color: #1a2340; border: 1px solid rgba(240, 241, 247, 0.8);
           font-size: 15px; font-weight: 700; cursor: pointer;
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), inset 0 -1px 0 rgba(0, 0, 0, 0.05), 0 4px 10px rgba(0, 0, 0, 0.05);
-          transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s, background 0.2s;
-          position: relative; overflow: hidden;
+          transition: transform 0.2s, background-color 0.2s;
         }
         .vk-btn-secondary:hover {
-          background: linear-gradient(180deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.3) 50%, rgba(0, 0, 0, 0.02) 50%, rgba(0, 0, 0, 0.07) 100%), #e2e4ef;
-          transform: translateY(-2px) scale(1.02);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 rgba(0, 0, 0, 0.07), 0 8px 16px rgba(26, 35, 64, 0.08);
+          background-color: #e2e4ef;
+          transform: translateY(-2px);
         }
         .vk-btn-secondary:active {
-          transform: translateY(0) scale(0.98);
-          box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(26, 35, 64, 0.03);
-        }
-        .vk-btn-secondary::after {
-          content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
-          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
-          transform: skewX(-20deg);
-        }
-        .vk-btn-secondary:hover::after {
-          left: 150%; transition: left 0.7s ease-in-out;
+          transform: translateY(0);
         }
 
         .vk-otp-digit-box {
@@ -334,30 +299,54 @@ function StatusScreen() {
           object-fit: contain; mix-blend-mode: darken; filter: contrast(1.1) brightness(1.2);
         }
 
-        /* Pulse Animation */
-        @keyframes ripple {
-          0% { box-shadow: 0 0 0 0 rgba(43, 78, 170, 0.4); }
-          70% { box-shadow: 0 0 0 30px rgba(43, 78, 170, 0); }
-          100% { box-shadow: 0 0 0 0 rgba(43, 78, 170, 0); }
-        }
-        @keyframes fadeIn { 
-          from { opacity: 0; } 
-          to { opacity: 1; } 
-        }
-        @keyframes slideUp { 
-          from { transform: translateY(100%); } 
-          to { transform: translateY(0); } 
-        }
         .hardware-sync-container {
           display: flex; flex-direction: column; align-items: center; justify-content: center;
           padding: 40px; text-align: center;
         }
-        .pulse-circle {
-          width: 80px; height: 80px; border-radius: 50%;
-          background: var(--accent);
+
+        .premium-icon-wrapper {
+          position: relative; width: 220px; height: 220px;
           display: flex; align-items: center; justify-content: center;
-          color: white; margin-bottom: 24px;
-          animation: ripple 2s infinite;
+          margin-bottom: 8px;
+        }
+
+        .premium-ring-1, .premium-ring-2 {
+          position: absolute; border-radius: 50%;
+        }
+
+        .premium-ring-1 {
+          width: 140px; height: 140px;
+          border: 1.5px solid rgba(16, 185, 129, 0.08);
+          background: rgba(16, 185, 129, 0.02);
+          z-index: 1;
+        }
+
+        .premium-ring-2 {
+          width: 180px; height: 180px;
+          border: 1.5px solid rgba(16, 185, 129, 0.04);
+          background: rgba(16, 185, 129, 0.01);
+          z-index: 0;
+        }
+
+        .pulse-circle {
+          width: 96px; height: 96px; border-radius: 50%;
+          background: linear-gradient(135deg, #71ea68 0%, #20a95c 100%);
+          display: flex; align-items: center; justify-content: center;
+          color: white; 
+          border: 5px solid white;
+          box-shadow: 0 8px 24px rgba(32, 169, 92, 0.3);
+          position: relative; z-index: 2;
+        }
+
+        .pulse-circle svg {
+          filter: drop-shadow(0 2px 4px rgba(0,0,0,0.15));
+        }
+
+        .sparkle-icon { position: absolute; color: #58c973; z-index: 0; }
+        .dot-icon { position: absolute; border-radius: 50%; background: #e2f2e5; z-index: 0; }
+
+        .pulse-circle svg {
+          filter: drop-shadow(0 4px 6px rgba(0,0,0,0.15));
         }
       `}</style>
 
@@ -399,13 +388,27 @@ function StatusScreen() {
           <div className="vk-card">
             {isCompleted ? (
               <div className="hardware-sync-container" style={{ flex: 1, width: '100%' }}>
-                <div className="pulse-circle" style={{ background: '#10b981', animation: 'none' }}>
-                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
+                <div className="premium-icon-wrapper">
+                  <div className="sparkle-icon" style={{ top: '35px', right: '35px', width: '20px', height: '20px' }}>
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4L12 2z"/></svg>
+                  </div>
+                  <div className="sparkle-icon" style={{ bottom: '35px', left: '40px', width: '16px', height: '16px' }}>
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4L12 2z"/></svg>
+                  </div>
+                  <div className="dot-icon" style={{ top: '50px', left: '45px', width: '12px', height: '12px' }}></div>
+                  <div className="dot-icon" style={{ bottom: '40px', right: '55px', width: '14px', height: '14px' }}></div>
+                  <div className="dot-icon" style={{ top: '100px', right: '20px', width: '10px', height: '10px' }}></div>
+                  
+                  <div className="premium-ring-2"></div>
+                  <div className="premium-ring-1"></div>
+                  <div className="pulse-circle">
+                    <svg width="86" height="86" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M 7 13.5 L 10.5 17 L 17 7" />
+                    </svg>
+                  </div>
                 </div>
                 <h2 className="vk-card-title">Printing Completed!</h2>
-                <p style={{ color: '#8892a4', fontSize: '14px', marginBottom: '32px', maxWidth: '280px' }}>
+                <p style={{ color: '#8892a4', fontSize: '15px', marginBottom: '32px', maxWidth: '280px', lineHeight: '1.5' }}>
                   Your document has been printed successfully. Thank you for using CampusPrint!
                 </p>
                 <button 
@@ -423,10 +426,24 @@ function StatusScreen() {
               </div>
             ) : isPrinting ? (
               <div className="hardware-sync-container" style={{ flex: 1, width: '100%' }}>
-                <div className="pulse-circle">
-                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
+                <div className="premium-icon-wrapper">
+                  <div className="sparkle-icon" style={{ top: '35px', right: '35px', width: '20px', height: '20px' }}>
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4L12 2z"/></svg>
+                  </div>
+                  <div className="sparkle-icon" style={{ bottom: '35px', left: '40px', width: '16px', height: '16px' }}>
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4L12 2z"/></svg>
+                  </div>
+                  <div className="dot-icon" style={{ top: '50px', left: '45px', width: '12px', height: '12px' }}></div>
+                  <div className="dot-icon" style={{ bottom: '40px', right: '55px', width: '14px', height: '14px' }}></div>
+                  <div className="dot-icon" style={{ top: '100px', right: '20px', width: '10px', height: '10px' }}></div>
+                  
+                  <div className="premium-ring-2"></div>
+                  <div className="premium-ring-1"></div>
+                  <div className="pulse-circle">
+                    <svg width="86" height="86" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M 7 13.5 L 10.5 17 L 17 7" />
+                    </svg>
+                  </div>
                 </div>
                 <h2 className="vk-card-title">Printing Started!</h2>
                 <p style={{ color: '#8892a4', fontSize: '14px', marginBottom: '32px', maxWidth: '280px' }}>

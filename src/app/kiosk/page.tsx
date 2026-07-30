@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
 
 export default function Kiosk() {
   const [otp, setOtp] = useState('')
@@ -54,12 +55,49 @@ export default function Kiosk() {
     }
   }
 
+  const printPhysicalDocument = async (storagePath: string) => {
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase.storage.from('documents').createSignedUrl(storagePath, 60);
+      if (error || !data) throw error;
+      
+      const res = await fetch(data.signedUrl);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = blobUrl;
+      document.body.appendChild(iframe);
+      
+      iframe.onload = () => {
+        setTimeout(() => {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+          // Cleanup iframe after printing
+          setTimeout(() => {
+            document.body.removeChild(iframe);
+            URL.revokeObjectURL(blobUrl);
+          }, 10000);
+        }, 500);
+      };
+    } catch (err) {
+      console.error("Physical print failed", err);
+    }
+  };
+
   // Simulates printing page by page for each file sequentially
   useEffect(() => {
     if (printingState !== 'printing' || !successData || !successData.files || successData.files.length === 0) return
 
     const activeFile = successData.files[activeFileIndex]
     if (!activeFile) return
+
+    // Trigger actual physical print when a file starts
+    if (currentPage === 1 && activeFile.storage_path && !activeFile._printTriggered) {
+      activeFile._printTriggered = true; // prevent re-triggering
+      printPhysicalDocument(activeFile.storage_path);
+    }
 
     const intervalTime = 1200 // 1.2 seconds per page simulation
     const timer = setInterval(() => {

@@ -72,7 +72,8 @@ export async function POST(request: Request) {
         fileType = 'application/pdf';
       }
   
-      const storagePath = `${jobId}/${fileName}`
+      const safeFileName = fileName.replace(/[^a-zA-Z0-9.\-_]/g, '_')
+      const storagePath = `${jobId}/${safeFileName}`
       const uploadBlob = new Blob([buffer], { type: fileType });
   
       const storageRes = await supabase.storage
