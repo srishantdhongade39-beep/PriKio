@@ -4,6 +4,9 @@ import { useState, useRef } from "react"
 import { useRouter } from 'next/navigation'
 import { usePrintStore } from '@/store/usePrintStore'
 import AppHeader from '@/components/AppHeader'
+import SmoothScrollBox from '@/components/SmoothScrollBox'
+import { getPdfPageCount, convertImageToPdfBlob } from '@/lib/clientDocUtils'
+import { createClient } from '@/lib/supabase/client'
 
 export default function UploadScreen() {
   const router = useRouter()
@@ -14,8 +17,8 @@ export default function UploadScreen() {
   const inputRef = useRef<HTMLInputElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
-  const handleFiles = (incoming: FileList | File[]) => {
-    const allowedExtensions = ['.pdf', '.docx', '.doc', '.txt', '.xlsx', '.xls', '.csv', '.pptx', '.ppt', '.jpg', '.jpeg', '.png', '.html', '.htm', '.xml']
+  const handleFiles = async (incoming: FileList | File[]) => {
+    const allowedExtensions = ['.pdf', '.docx', '.doc', '.txt', '.xlsx', '.xls', '.csv', '.pptx', '.ppt', '.jpg', '.jpeg', '.png', '.html', '.htm', '.xml', '.webp']
     const validFiles: File[] = []
     let rejectedCount = 0
 
@@ -32,23 +35,41 @@ export default function UploadScreen() {
       alert(`Skipped ${rejectedCount} file(s). Only Document, Spreadsheet, Presentation, Image, and Code formats are supported.`)
     }
 
-    const arr = validFiles.map((f) => ({
-      id: Math.random().toString(36).slice(2),
-      file: f,
-      name: f.name,
-      size: (f.size / 1024 / 1024).toFixed(2) + " MB",
-      pagesToPrint: "All",
-    }))
-    setFiles((prev) => [...prev, ...arr])
+    // Fast client-side pre-processing for instant page counts and image-to-PDF conversion
+    const processedItems = await Promise.all(
+      validFiles.map(async (f) => {
+        let activeBlob: Blob = f
+        let activeFileName = f.name
+        let pageCount = 1
+        const ext = f.name.substring(f.name.lastIndexOf('.')).toLowerCase()
+
+        if (ext === '.pdf') {
+          pageCount = await getPdfPageCount(f)
+        } else if (['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
+          const converted = await convertImageToPdfBlob(f)
+          activeBlob = converted.blob
+          activeFileName = converted.fileName
+          pageCount = 1
+        }
+
+        return {
+          id: Math.random().toString(36).slice(2),
+          file: activeBlob,
+          originalFile: f,
+          name: activeFileName,
+          size: (f.size / 1024 / 1024).toFixed(2) + " MB",
+          pageCount: pageCount,
+          pagesToPrint: "All",
+          isReadyPdf: ext === '.pdf' || activeFileName.endsWith('.pdf')
+        }
+      })
+    )
+
+    setFiles((prev) => [...prev, ...processedItems])
   }
 
   const removeFile = (id: string) =>
     setFiles((prev) => prev.filter((f) => f.id !== id))
-
-  const updatePages = (id: string, val: string) =>
-    setFiles((prev) =>
-      prev.map((f) => (f.id === id ? { ...f, pagesToPrint: val } : f))
-    )
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
@@ -61,83 +82,145 @@ export default function UploadScreen() {
     if (files.length === 0) return
     setUploading(true)
     setUploadProgress(0)
-    setUploadIndex(files.length) // No longer needed as a counter, just showing total
+    setUploadIndex(files.length)
     abortControllerRef.current = new AbortController()
 
     try {
-      const formData = new FormData()
-      files.forEach(item => {
-        formData.append('files', item.file)
-      })
+      // ─────────────────────────────────────────────────────────────
+      // ULTRA-FAST DIRECT PATH: Metadata Init + Direct Supabase Upload
+      // ─────────────────────────────────────────────────────────────
+      setUploadProgress(20)
 
-      // Use XMLHttpRequest for actual byte-level network upload progress
-      const xhr = new XMLHttpRequest()
-      
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) {
-          // Progress goes up to 95% during network upload, the remaining 5% is server processing
-          const p = (e.loaded / e.total) * 95
-          setUploadProgress(p)
-        }
-      })
-
-      const responseData = await new Promise((resolve, reject) => {
-        xhr.addEventListener('load', () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            try { 
-              resolve(JSON.parse(xhr.responseText)) 
-            } catch(err) { 
-              reject(new Error('Invalid response from server')) 
-            }
-          } else {
-            try { 
-              reject(new Error(JSON.parse(xhr.responseText).error)) 
-            } catch(err) { 
-              reject(new Error('Upload failed with status ' + xhr.status)) 
-            }
-          }
+      // 1. Initialize session and get signed upload URLs / storage paths
+      const initRes = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: abortControllerRef.current.signal,
+        body: JSON.stringify({
+          files: files.map(f => ({
+            fileName: f.name,
+            fileType: f.file?.type || 'application/octet-stream',
+            pageCount: f.pageCount
+          }))
         })
-        xhr.addEventListener('error', () => reject(new Error('Network error during upload')))
-        xhr.addEventListener('abort', () => reject(new Error('AbortError')))
-        
-        xhr.open('POST', '/api/upload')
-        
-        if (abortControllerRef.current) {
-          abortControllerRef.current.signal.addEventListener('abort', () => xhr.abort())
-        }
-        
-        xhr.send(formData)
       })
 
+      if (!initRes.ok) {
+        const errData = await initRes.json()
+        throw new Error(errData.error || 'Failed to initialize upload session')
+      }
+
+      const sessionData = await initRes.json()
+      const supabase = createClient()
+      const totalFiles = files.length
+      let completedUploads = 0
+
+      // 2. Upload each file directly to Supabase Storage in parallel
+      const uploadPromises = sessionData.files.map(async (serverFile: any, index: number) => {
+        const localItem = files[index]
+        const uploadBlob = localItem.file instanceof Blob 
+          ? localItem.file 
+          : new Blob([localItem.file])
+
+        // Direct upload to Supabase Storage
+        const { error: uploadError } = await supabase.storage
+          .from('documents')
+          .upload(serverFile.storage_path, uploadBlob, {
+            upsert: true,
+            contentType: localItem.file?.type || 'application/octet-stream'
+          })
+
+        if (uploadError) {
+          // Fallback to signed URL PUT if standard upload has RLS restriction
+          if (serverFile.signedUploadUrl) {
+            const putRes = await fetch(serverFile.signedUploadUrl, {
+              method: 'PUT',
+              body: uploadBlob,
+              headers: { 'Content-Type': localItem.file?.type || 'application/octet-stream' }
+            })
+            if (!putRes.ok) throw new Error('Signed direct upload failed')
+          } else {
+            throw new Error(uploadError.message)
+          }
+        }
+
+        completedUploads++
+        const progressPercent = 25 + Math.round((completedUploads / totalFiles) * 70)
+        setUploadProgress(progressPercent)
+      })
+
+      await Promise.all(uploadPromises)
       setUploadProgress(100)
 
-      const result = responseData as any
-      
-      // Match the server results with our local files array
-      const formattedResults = result.files.map((serverFile: any, index: number) => {
-        const originalItem = files[index];
+      // 3. Format store items
+      const formattedResults = sessionData.files.map((serverFile: any, index: number) => {
+        const originalItem = files[index]
+        const needsConversion = !!serverFile.needsConversion
         return {
           id: Math.random().toString(36).substring(7),
-          job_id: result.job_id,
-          otp: result.otp,
+          job_id: sessionData.job_id,
+          otp: sessionData.otp,
+          storagePath: serverFile.storage_path,
           fileName: serverFile.filename,
           fileSizeMb: originalItem.size.replace(" MB", ""),
-          pageCount: serverFile.page_count || 1,
+          pageCount: serverFile.page_count || originalItem.pageCount || 1,
           pagesToPrint: originalItem.pagesToPrint,
           url: serverFile.url,
-          originalFile: originalItem.file
+          originalFile: originalItem.file,
+          isConverting: needsConversion
         }
       })
 
       usePrintStore.getState().setFiles(formattedResults)
       if (formattedResults.length > 0) {
-        usePrintStore.getState().setJobData(result.job_id, result.otp)
+        usePrintStore.getState().setJobData(sessionData.job_id, sessionData.otp)
       }
-      
+
+      // 4. Trigger non-blocking async background conversion for Office/PPT docs
+      formattedResults.forEach((item: any) => {
+        if (item.isConverting) {
+          fetch('/api/convert', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              jobId: item.job_id,
+              storagePath: item.storagePath,
+              fileName: item.fileName,
+              fileId: item.id
+            })
+          })
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                usePrintStore.getState().updateFile(item.id, {
+                  url: data.convertedUrl,
+                  fileName: data.convertedFileName,
+                  storagePath: data.storagePath,
+                  pageCount: data.pageCount,
+                  isConverting: false
+                })
+              } else {
+                usePrintStore.getState().updateFile(item.id, {
+                  isConverting: false,
+                  conversionError: data.error || 'Conversion failed'
+                })
+              }
+            })
+            .catch(err => {
+              console.error('Background conversion error:', err)
+              usePrintStore.getState().updateFile(item.id, {
+                isConverting: false,
+                conversionError: err.message
+              })
+            })
+        }
+      })
+
+      // Immediately route to print-settings without blocking!
       router.push('/print-settings')
 
     } catch (err: any) {
-      if (err.message === 'AbortError') {
+      if (err.name === 'AbortError' || err.message === 'AbortError') {
         console.log('Upload cancelled')
       } else {
         console.error(err)
@@ -214,22 +297,6 @@ export default function UploadScreen() {
           overflow: hidden; box-shadow: none;
         }
 
-        /* Card header */
-        .up-card-header {
-          display: flex; align-items: center; justify-content: center;
-          padding: 20px 20px 0; flex-shrink: 0; position: relative;
-        }
-        .up-back {
-          background: none; border: none; font-size: 28px; line-height: 1;
-          color: #1a2340; cursor: pointer; padding: 4px;
-          position: absolute; left: 16px; top: 16px;
-        }
-        .up-card-title {
-          text-align: center; width: 100%;
-          font-family: 'Quicksand', sans-serif !important;
-          font-style: italic; font-size: 1.25rem; font-weight: 600; color: #1a2340;
-        }
-
         /* Scrollable body */
         .up-card-body {
           flex: 1; overflow-y: auto; padding: 80px 20px 0;
@@ -273,71 +340,70 @@ export default function UploadScreen() {
         /* Add more (compact) */
         .up-add-more {
           display: flex; align-items: center; justify-content: center; gap: 8px;
-          padding: 12px 16px; border-radius: 12px;
-          border: 2.5px dashed #1a2340; cursor: pointer;
-          font-size: 14px; color: #1a2340; font-weight: 700;
-          margin-bottom: 16px; background: #fff; width: max-content;
-          transition: border-color 0.2s;
+          padding: 12px 18px; border-radius: 14px;
+          border: 1.8px dashed #cbd5e1; cursor: pointer;
+          font-size: 13.5px; color: #334155; font-weight: 600;
+          margin-top: 10px; margin-bottom: 16px; background: #ffffff; width: 100%;
+          transition: all 0.2s ease; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
         }
-        .up-add-more:hover { border-color: #1a2340; }
+        .up-add-more:hover { border-color: #4f46e5; color: #4f46e5; background: #f5f7ff; transform: translateY(-1px); }
+
+        /* Files scroll list */
+        .up-files-box {
+          border: 1.5px solid #e2e8f0;
+          border-radius: 18px;
+          background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+          padding: 10px;
+          max-height: 50vh;
+          overflow-y: auto;
+          display: flex;
+          flex-direction: column;
+          gap: 9px;
+          -webkit-overflow-scrolling: touch;
+          box-shadow: inset 0 2px 5px rgba(15, 23, 42, 0.02), 0 1px 2px rgba(15, 23, 42, 0.03);
+        }
 
         /* File cards */
         .up-file-card {
-          background: rgba(255, 255, 255, 0.65);
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-          border-radius: 16px;
-          padding: 16px; margin-bottom: 12px;
-          display: flex; align-items: flex-start; gap: 14px;
-          border: 1px solid rgba(255, 255, 255, 0.8);
-          box-shadow: 0 8px 32px rgba(31, 38, 135, 0.05);
+          background: #ffffff;
+          border-radius: 14px;
+          padding: 11px 14px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          border: 1px solid #e2e8f0;
+          box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
           position: relative;
+          transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s;
+        }
+        .up-file-card:hover {
+          border-color: #cbd5e1;
+          box-shadow: 0 6px 16px -4px rgba(15, 23, 42, 0.08), 0 2px 6px -2px rgba(15, 23, 42, 0.04);
+          transform: translateY(-1.5px);
         }
         .up-file-icon {
-          width: 44px; height: 44px; border-radius: 10px;
-          background: #f0f1f7; display: flex;
+          width: 38px; height: 38px; border-radius: 10px;
+          background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+          border: 1px solid rgba(79, 70, 229, 0.15);
+          display: flex;
           align-items: center; justify-content: center;
-          flex-shrink: 0; border: 1px solid rgba(26,35,64,0.08);
+          flex-shrink: 0;
         }
-        .up-file-info { flex: 1; min-width: 0; padding-right: 20px; }
+        .up-file-info { flex: 1; min-width: 0; padding-right: 32px; }
         .up-file-name {
-          font-size: 14px; font-weight: 700; color: #1a2340;
+          font-size: 13.5px; font-weight: 600; color: #0f172a;
           white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-          margin-bottom: 4px;
+          margin-bottom: 3px;
         }
-        .up-file-meta { font-size: 12px; color: #8892a4; margin-bottom: 12px; font-weight: 500; }
-        .up-pages-row {
-          display: flex; align-items: center; gap: 8px;
-        }
-        .up-pages-label { font-size: 12px; color: #8892a4; font-weight: 500; }
-        .up-pages-input {
-          width: 60px; padding: 4px 8px; border-radius: 6px;
-          border: 1.5px solid #e2e8f0; font-size: 13px; font-weight: 600;
-          color: #1a2340; outline: none; background: #fff; text-align: center;
-        }
-        .up-pages-input:focus { border-color: #4a5fc1; }
+        .up-file-meta { font-size: 12px; color: #64748b; font-weight: 500; }
         .up-remove {
-          background: none; border: none; cursor: pointer;
-          color: #cbd5e1; font-size: 20px; padding: 4px;
-          position: absolute; top: 12px; right: 12px;
-          line-height: 1; transition: color 0.2s;
+          background: #f8fafc; border: 1px solid #e2e8f0; 
+          border-radius: 50%; width: 26px; height: 26px; cursor: pointer;
+          color: #64748b; font-size: 15px; display: flex; align-items: center; justify-content: center;
+          position: absolute; top: 50%; right: 12px; transform: translateY(-50%);
+          line-height: 1; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
         }
-        .up-remove:hover { color: #e53e3e; }
-
-        /* Settings rows */
-        .up-settings { margin-bottom: 8px; }
-        .up-setting-row {
-          display: flex; align-items: center; justify-content: space-between;
-          padding: 14px 0; border-bottom: 1px solid #f0f2f5;
-          cursor: pointer;
-        }
-        .up-setting-row:last-child { border-bottom: none; }
-        .up-setting-label { font-size: 14px; color: #4a5568; }
-        .up-setting-val {
-          font-size: 14px; font-weight: 600; color: #1a2340;
-          display: flex; align-items: center; gap: 4px;
-        }
-        .up-chevron { font-size: 12px; color: #a0aec0; }
+        .up-remove:hover { background: #fee2e2; border-color: #fca5a5; color: #ef4444; transform: translateY(-50%) scale(1.1); }
 
         /* Footer */
         .up-footer { padding: 14px 20px 20px; flex-shrink: 0; width: 100%; max-width: 440px; margin: 0 auto; }
@@ -354,62 +420,6 @@ export default function UploadScreen() {
           border-radius: 20px; padding: 2px 10px;
           font-size: 12px; font-weight: 700;
         }
-
-        /* Modal */
-        .up-modal-overlay {
-          position: fixed; inset: 0; background: rgba(0,0,0,0.4);
-          display: flex; align-items: flex-end; justify-content: center;
-          z-index: 200;
-        }
-        @media (min-width: 640px) {
-          .up-modal-overlay { align-items: center; }
-          .up-modal { border-radius: 20px !important; max-width: 340px; }
-        }
-        .up-modal {
-          background: #fff; border-radius: 20px 20px 0 0;
-          padding: 24px; width: 100%;
-          animation: modalUp 0.25s ease;
-        }
-        @keyframes modalUp {
-          from { transform: translateY(40px); opacity: 0; }
-          to { transform: translateY(0); opacity: 1; }
-        }
-        .up-modal-title {
-          font-size: 16px; font-weight: 700; color: #1a2340;
-          margin-bottom: 16px; text-align: center;
-        }
-        .up-modal-option {
-          width: 100%; padding: 13px; border-radius: 10px;
-          border: 1.5px solid #e2e8f0; background: #fff;
-          font-size: 14px; color: #1a2340; cursor: pointer;
-          margin-bottom: 8px; text-align: left;
-          transition: border-color 0.15s, background 0.15s;
-        }
-        .up-modal-option.selected {
-          border-color: #4a5fc1; background: #eef0fb;
-          font-weight: 600; color: #4a5fc1;
-        }
-        .up-modal-close {
-          width: 100%; padding: 13px; border-radius: 50px;
-          background: #1a2340; color: #fff; border: none;
-          font-size: 14px; font-weight: 600; cursor: pointer;
-          margin-top: 8px;
-        }
-
-        /* Copies counter */
-        .up-counter {
-          display: flex; align-items: center;
-          justify-content: center; gap: 24px; margin-bottom: 20px;
-        }
-        .up-counter-btn {
-          width: 40px; height: 40px; border-radius: 50%;
-          border: 1.5px solid #d1d5db; background: #fff;
-          font-size: 22px; cursor: pointer; display: flex;
-          align-items: center; justify-content: center;
-          color: #1a2340; transition: border-color 0.15s;
-        }
-        .up-counter-btn:hover { border-color: #4a5fc1; }
-        .up-counter-val { font-size: 28px; font-weight: 700; color: #1a2340; min-width: 32px; text-align: center; }
 
         /* Upload Modal Styles */
         .up-upload-overlay {
@@ -444,7 +454,7 @@ export default function UploadScreen() {
           animation: float 2s infinite ease-in-out;
         }
         .up-folder-anim svg {
-          width: 100%; height: 100%; color: #1a2340; /* Brand blue folder color */
+          width: 100%; height: 100%; color: #1a2340;
           filter: drop-shadow(0 4px 6px rgba(26,35,64,0.2));
         }
         @keyframes float {
@@ -507,7 +517,6 @@ export default function UploadScreen() {
       {uploading && (
         <div className="up-upload-overlay">
           <div className="up-upload-modal">
-            {/* Animated folder icon */}
             <div className="up-folder-anim">
               <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                 <path d="M10 4H4C2.9 4 2.01 4.9 2.01 6L2 18C2 19.1 2.9 20 4 20H20C21.1 20 22 19.1 22 18V8C22 6.9 21.1 6 20 6H12L10 4Z"/>
@@ -549,7 +558,6 @@ export default function UploadScreen() {
           </svg>
           <h1 className="up-left-title">Upload Your Files</h1>
           <p className="up-left-sub">Select PDF, Office, Image, or Code files.</p>
-
         </div>
 
         {/* Right panel */}
@@ -562,7 +570,7 @@ export default function UploadScreen() {
               <div className="up-card-inner">
                 <input
                   ref={inputRef} type="file" multiple
-                  accept=".pdf,.docx,.doc,.txt,.xlsx,.xls,.csv,.pptx,.ppt,.jpg,.jpeg,.png,.html,.htm,.xml"
+                  accept=".pdf,.docx,.doc,.txt,.xlsx,.xls,.csv,.pptx,.ppt,.jpg,.jpeg,.png,.html,.htm,.xml,.webp"
                   style={{ display: "none" }}
                   onChange={(e) => {
                     if (e.target.files && e.target.files.length > 0) {
@@ -605,28 +613,43 @@ export default function UploadScreen() {
                 </div>
               ) : (
                 /* Files listed */
-                <>
-                  {files.map((f) => (
-                    <div className="up-file-card" key={f.id}>
-                      <div className="up-file-icon">
-                        {f.name.match(/\.(jpg|jpeg|png)$/i) ? (
-                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a2340" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                        ) : (
-                          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a2340" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-                        )}
-                      </div>
-                      <div className="up-file-info">
-                        <div className="up-file-name">{f.name}</div>
-                        <div className="up-file-meta">{f.size}</div>
-
-                      </div>
-                      <button className="up-remove" onClick={() => removeFile(f.id)}>×</button>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '0.74rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#64748b' }}>Files to Upload</span>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, background: 'linear-gradient(135deg, #4f46e5 0%, #3730a3 100%)', color: '#ffffff', padding: '2px 8px', borderRadius: '12px', boxShadow: '0 2px 6px rgba(79, 70, 229, 0.25)' }}>{files.length}</span>
                     </div>
-                  ))}
+                    <span style={{ fontSize: '0.74rem', color: '#059669', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }}></span>
+                      Scroll to review
+                    </span>
+                  </div>
+
+                  <SmoothScrollBox className="up-files-box" maxHeight="50vh">
+                    {files.map((f) => (
+                      <div className="up-file-card" key={f.id}>
+                        <div className="up-file-icon">
+                          {f.name.match(/\.(jpg|jpeg|png|webp)$/i) ? (
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4a5fc1" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                          ) : (
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4a5fc1" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                          )}
+                        </div>
+                        <div className="up-file-info">
+                          <div className="up-file-name">{f.name}</div>
+                          <div className="up-file-meta">
+                            {f.pageCount ? `${f.pageCount} ${f.pageCount === 1 ? 'Page' : 'Pages'} • ` : ''}{f.size}
+                          </div>
+                        </div>
+                        <button className="up-remove" onClick={() => removeFile(f.id)} title="Remove file">×</button>
+                      </div>
+                    ))}
+                  </SmoothScrollBox>
+
                   <button className="up-add-more" onClick={() => inputRef.current?.click()}>
                     + Add More Files
                   </button>
-                </>
+                </div>
               )}
 
                 <div className="up-hint">✓ Preview pages before you print</div>
@@ -648,7 +671,6 @@ export default function UploadScreen() {
           </div>
         </div>
       </div>
-
     </>
   )
 }

@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
-import { CostResult } from '@/lib/calculate-cost'
 import { usePrintStore } from '@/store/usePrintStore'
 import dynamic from 'next/dynamic'
 import PrintSettingsCard from '@/components/PrintSettingsCard'
@@ -26,9 +25,22 @@ export default function PrintSettings() {
     }
   }, [files.length, router])
 
-  const handleConfirmPay = (settings: any) => {
+  const handleConfirmPay = async (settings: any) => {
     if (files.length === 0) return
     
+    // If any file is still converting in the background, wait gracefully
+    const hasConverting = files.some(f => f.isConverting)
+    if (hasConverting) {
+      setSubmitting(true)
+      const start = Date.now()
+      while (Date.now() - start < 15000) {
+        await new Promise(r => setTimeout(r, 500))
+        const currentFiles = usePrintStore.getState().files
+        if (!currentFiles.some(f => f.isConverting)) break
+      }
+      setSubmitting(false)
+    }
+
     sessionStorage.setItem('printSettings', JSON.stringify(settings))
     router.push('/review')
   }
@@ -36,7 +48,7 @@ export default function PrintSettings() {
   if (files.length === 0) return null
 
   return (
-    <div className="page-root">
+    <div className="page-root" style={{ height: '100vh', maxHeight: '100vh', overflow: 'hidden' }}>
       {/* Desktop left branding panel */}
       <div className="desktop-left-panel">
         <div className="dlp-step-pill">Step 2 of 3</div>
@@ -47,7 +59,7 @@ export default function PrintSettings() {
           <line x1="12" y1="8" x2="12" y2="3"></line>
           <line x1="20" y1="21" x2="20" y2="16"></line>
           <line x1="20" y1="12" x2="20" y2="3"></line>
-          <line x1="1" y1="14" x2="7" y1="14"></line>
+          <line x1="1" y1="14" x2="7" y2="14"></line>
           <line x1="9" y1="8" x2="15" y2="8"></line>
           <line x1="17" y1="16" x2="23" y2="16"></line>
         </svg>
@@ -55,11 +67,10 @@ export default function PrintSettings() {
         <p className="dlp-sub">Choose color mode, layout, and number of copies for your documents.</p>
 
         <hr className="dlp-divider" />
-
       </div>
 
-      <div className="desktop-right-panel" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%', height: '100%', minHeight: 0 }}>
+      <div className="desktop-right-panel" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100vh', maxHeight: '100vh' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%', height: '100%', minHeight: 0, overflow: 'hidden' }}>
           <PrintSettingsCard
             files={files as any}
             onConfirm={handleConfirmPay}
@@ -67,7 +78,11 @@ export default function PrintSettings() {
             onBack={() => router.push('/upload')}
           />
           {error && <p style={{ color: 'var(--red)', fontSize: '12px', marginTop: '12px', textAlign: 'center' }}>{error}</p>}
-          {submitting && <p style={{ color: 'var(--grey)', fontSize: '12px', marginTop: '12px', textAlign: 'center' }}>Processing...</p>}
+          {submitting && (
+            <div style={{ padding: '8px', textAlign: 'center', fontSize: '13px', color: 'var(--accent)', fontWeight: 600 }}>
+              Finalizing print document...
+            </div>
+          )}
 
           {previewFileId && (
             <FilePreviewModal

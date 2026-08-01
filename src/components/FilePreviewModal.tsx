@@ -3,6 +3,7 @@ import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { parsePageRangeToSet, formatSetToPageRange } from '@/lib/pageRangeUtils'
 import { PrintFile } from '@/store/usePrintStore'
 import { motion, AnimatePresence } from 'framer-motion'
+import Lenis from 'lenis'
 
 if (typeof window !== 'undefined') {
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -15,7 +16,7 @@ function PdfPageCanvas({ pdf, pageNum, selected, onToggle }: { pdf: any, pageNum
   const [isLoaded, setIsLoaded] = useState(false)
 
   useEffect(() => {
-    if (isVisible) return; // already visible
+    if (isVisible) return;
 
     const scrollContainer = document.getElementById('pdf-scroll-container');
     if (!scrollContainer) return;
@@ -25,14 +26,12 @@ function PdfPageCanvas({ pdf, pageNum, selected, onToggle }: { pdf: any, pageNum
       const rect = containerRef.current.getBoundingClientRect();
       const containerRect = scrollContainer.getBoundingClientRect();
       
-      // If the page is within 1000px of the visible scroll area
       if (rect.top < containerRect.bottom + 1000 && rect.bottom > containerRect.top - 1000) {
         setIsVisible(true);
       }
     };
 
     scrollContainer.addEventListener('scroll', checkVisibility, { passive: true });
-    // Check initially in case it's already in view but pageNum > 2
     setTimeout(checkVisibility, 100);
 
     return () => scrollContainer.removeEventListener('scroll', checkVisibility);
@@ -46,7 +45,6 @@ function PdfPageCanvas({ pdf, pageNum, selected, onToggle }: { pdf: any, pageNum
       let scale = isMobile ? 1.0 : 1.5;
       let viewport = page.getViewport({ scale })
       
-      // Memory safety cap for Android Chrome
       if (isMobile && viewport.width > 1000) {
         scale = 1000 / (viewport.width / scale);
         viewport = page.getViewport({ scale });
@@ -59,7 +57,6 @@ function PdfPageCanvas({ pdf, pageNum, selected, onToggle }: { pdf: any, pageNum
       canvas.height = viewport.height
       canvas.width = viewport.width
       
-      // Reset transform and clear to fix React Strict Mode double-render glitches
       context.setTransform(1, 0, 0, 1, 0, 0)
       context.clearRect(0, 0, canvas.width, canvas.height)
 
@@ -71,10 +68,9 @@ function PdfPageCanvas({ pdf, pageNum, selected, onToggle }: { pdf: any, pageNum
       renderTask.promise.then(() => {
         setIsLoaded(true)
       }).catch((err: any) => {
-        // Ignore task cancellation errors, log others
         if (err.name !== 'RenderingCancelledException') {
           console.error(`Error rendering page ${pageNum}:`, err)
-          setIsLoaded(true) // still reveal canvas so user can see it's blank or error
+          setIsLoaded(true)
         }
       })
     })
@@ -98,99 +94,131 @@ function PdfPageCanvas({ pdf, pageNum, selected, onToggle }: { pdf: any, pageNum
         position: 'relative',
         cursor: 'pointer',
         background: '#fff',
+        boxShadow: selected ? '0 8px 24px rgba(74,95,193,0.15)' : '0 4px 12px rgba(0,0,0,0.03)',
+        transition: 'border-color 0.2s, box-shadow 0.2s',
         display: 'flex',
         flexDirection: 'column',
-        width: '100%',
-        maxWidth: '650px',
-        minHeight: isLoaded ? 'auto' : '800px',
-        margin: '0 auto',
-        boxShadow: selected ? '0 12px 32px rgba(74,95,193,0.25)' : '0 4px 12px rgba(0,0,0,0.05)',
-        transformOrigin: 'center'
+        alignItems: 'center'
       }}
     >
-      {!isLoaded && (
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', color: 'var(--grey)' }}>
-          <div className="spinner" style={{ width: '32px', height: '32px', border: '3px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-          <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+      {/* Top Header Bar */}
+      <div style={{
+        width: '100%',
+        padding: '12px 16px',
+        background: selected ? 'rgba(74,95,193,0.06)' : '#fff',
+        borderBottom: '1px solid var(--border)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <span style={{ fontSize: '13px', fontWeight: 700, color: selected ? 'var(--accent)' : 'var(--navy)' }}>
+          Page {pageNum}
+        </span>
+        <div style={{
+          width: '22px',
+          height: '22px',
+          borderRadius: '50%',
+          border: selected ? 'none' : '2px solid var(--border)',
+          background: selected ? 'var(--accent)' : 'transparent',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transition: 'all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)'
+        }}>
+          {selected && (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
         </div>
-      )}
-      
-      <canvas ref={canvasRef} style={{ width: '100%', height: 'auto', display: isLoaded ? 'block' : 'none' }} />
-      
-      <div style={{ position: 'absolute', bottom: 12, left: 12, background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: '14px', fontWeight: 600, padding: '4px 10px', borderRadius: '6px' }}>
-        Page {pageNum}
       </div>
-      
-      {/* Checkbox indicator */}
-      <AnimatePresence>
-        {selected ? (
-          <motion.div 
-            key="selected"
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 400, damping: 25 }}
-            style={{ position: 'absolute', top: 16, right: 16, background: 'var(--accent)', color: '#fff', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(74,95,193,0.4)', zIndex: 10 }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          </motion.div>
-        ) : (
-          <motion.div 
-            key="unselected"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={{ position: 'absolute', top: 16, right: 16, background: 'rgba(255,255,255,0.85)', border: '2px solid rgba(0,0,0,0.1)', borderRadius: '50%', width: '32px', height: '32px', zIndex: 10 }}
-          />
+
+      {/* Page Canvas Container */}
+      <div style={{ position: 'relative', width: '100%', minHeight: '150px', background: '#fafafa', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <canvas ref={canvasRef} style={{ display: 'block', maxWidth: '100%', height: 'auto' }} />
+        {!isLoaded && isVisible && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(2px)' }}>
+            <div className="spinner" style={{ width: '24px', height: '24px', border: '2px solid var(--border)', borderTopColor: 'var(--accent)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+          </div>
         )}
-      </AnimatePresence>
+      </div>
     </motion.div>
   )
 }
 
-export default function FilePreviewModal({ 
-  file, 
-  onSave, 
-  onClose 
-}: { 
-  file: PrintFile, 
-  onSave: (range: string) => void, 
-  onClose: () => void 
-}) {
+interface FilePreviewModalProps {
+  file: PrintFile;
+  onClose: () => void;
+  onSave: (pagesToPrint: string) => void;
+}
+
+export default function FilePreviewModal({ file, onClose, onSave }: FilePreviewModalProps) {
   const [pdf, setPdf] = useState<any>(null)
   const [selectedPages, setSelectedPages] = useState<Set<number>>(new Set())
+  const [isFetchingPdf, setIsFetchingPdf] = useState<boolean>(true)
+  const [errorMsg, setErrorMsg] = useState<string>('')
   const [objectUrl, setObjectUrl] = useState<string | null>(null)
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [isFetchingPdf, setIsFetchingPdf] = useState(true)
+  const pdfScrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const container = pdfScrollRef.current
+    if (!container) return
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (prefersReducedMotion) return
+
+    const lenis = new Lenis({
+      wrapper: container,
+      duration: 1.1,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      smoothWheel: true,
+      wheelMultiplier: 1,
+      touchMultiplier: 1.2,
+    })
+
+    let rafId: number
+    const onRaf = (time: number) => {
+      lenis.raf(time)
+      rafId = requestAnimationFrame(onRaf)
+    }
+    rafId = requestAnimationFrame(onRaf)
+
+    return () => {
+      cancelAnimationFrame(rafId)
+      lenis.destroy()
+    }
+  }, [pdf])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
 
   useEffect(() => {
     setSelectedPages(parsePageRangeToSet(file.pagesToPrint, file.pageCount))
-  }, [file])
+  }, [file.pagesToPrint, file.pageCount])
 
   useEffect(() => {
-    if (!file.originalFile && !file.url) {
-      setErrorMsg("File data is missing.")
-      setIsFetchingPdf(false)
+    let url: string | null = null
+    const isPdf = typeof file.fileName === 'string' && file.fileName.toLowerCase().endsWith('.pdf')
+    
+    if (file.originalFile && !isPdf) {
+      url = URL.createObjectURL(file.originalFile)
+      setObjectUrl(url)
+    }
+
+    if (file.isConverting) {
+      setIsFetchingPdf(true)
       return
     }
 
-    let url: string | null = null;
-    try {
-      if (file.originalFile) {
-        url = URL.createObjectURL(file.originalFile)
-        setObjectUrl(url)
-      }
-    } catch (e) {
-      console.error("Blob creation error:", e);
-    }
-    
-    const isPdf = typeof file.originalFile?.type === 'string' && file.originalFile.type === 'application/pdf' 
-                  || typeof file.fileName === 'string' && file.fileName.toLowerCase().endsWith('.pdf')
-    
     if (isPdf) {
       setIsFetchingPdf(true)
       try {
-        // If the local file is a native PDF, read it directly (instant)
         if (file.originalFile && file.originalFile.type === 'application/pdf') {
           file.originalFile.arrayBuffer().then(buffer => {
             pdfjsLib.getDocument({ 
@@ -212,7 +240,6 @@ export default function FilePreviewModal({
             setIsFetchingPdf(false)
           })
         } 
-        // Otherwise, if it was converted (like a PPTX), fetch the converted PDF from Supabase
         else if (file.url) {
           fetch(file.url)
             .then(res => res.arrayBuffer())
@@ -250,7 +277,7 @@ export default function FilePreviewModal({
     return () => {
       if (url) URL.revokeObjectURL(url)
     }
-  }, [file])
+  }, [file, file.isConverting, file.url])
 
   const handleToggle = (pageNum: number) => {
     const next = new Set(selectedPages)
@@ -301,8 +328,48 @@ export default function FilePreviewModal({
           </motion.button>
         </div>
 
-        <div id="pdf-scroll-container" data-lenis-prevent="true" style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '16px', background: 'var(--body-bg)' }}>
-          {pdf ? (
+        <div 
+          id="pdf-scroll-container" 
+          ref={pdfScrollRef}
+          data-lenis-prevent="true" 
+          style={{ 
+            flex: 1, 
+            overflowY: 'auto', 
+            overscrollBehavior: 'contain',
+            WebkitOverflowScrolling: 'touch', 
+            padding: '16px', 
+            background: 'var(--body-bg)',
+            scrollbarWidth: 'thin',
+            scrollbarColor: 'rgba(74,95,193,0.25) transparent'
+          }}
+        >
+          {file.isConverting ? (
+            /* Dedicated high-tech background conversion state */
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', padding: '40px 20px', textAlign: 'center' }}>
+              <div style={{ width: '64px', height: '64px', borderRadius: '20px', background: 'rgba(74,95,193,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px', animation: 'float 2s infinite ease-in-out' }}>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="16" y1="13" x2="8" y2="13"/>
+                  <line x1="16" y1="17" x2="8" y2="17"/>
+                  <polyline points="10 9 9 9 8 9"/>
+                </svg>
+              </div>
+              <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--navy)', marginBottom: '8px' }}>
+                Preparing slides for preview...
+              </div>
+              <div style={{ fontSize: '14px', color: 'var(--gd)', maxWidth: '320px', lineHeight: 1.5, marginBottom: '24px' }}>
+                Converting presentation to high-resolution print pages. This will open automatically in a moment.
+              </div>
+              <div style={{ width: '220px', height: '6px', background: '#e2e8f0', borderRadius: '10px', overflow: 'hidden' }}>
+                <div style={{ width: '100%', height: '100%', background: 'linear-gradient(90deg, #4a5fc1, #1a2340, #4a5fc1)', animation: 'shimmer 1.5s infinite linear', backgroundSize: '200% 100%' }}></div>
+              </div>
+              <style>{`
+                @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+                @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+              `}</style>
+            </div>
+          ) : pdf ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', alignItems: 'center', padding: '16px 0' }}>
               {Array.from({ length: pdf.numPages }, (_, i) => i + 1).map(pageNum => (
                 <PdfPageCanvas 
@@ -348,9 +415,9 @@ export default function FilePreviewModal({
             whileHover={selectedPages.size > 0 ? { scale: 1.03 } : {}}
             whileTap={selectedPages.size > 0 ? { scale: 0.97 } : {}}
             onClick={handleSave}
-            disabled={selectedPages.size === 0}
+            disabled={selectedPages.size === 0 || file.isConverting}
             style={{
-              background: selectedPages.size === 0 ? 'var(--grey)' : 'var(--navy)',
+              background: selectedPages.size === 0 || file.isConverting ? 'var(--grey)' : 'var(--navy)',
               color: '#fff',
               border: 'none',
               padding: '14px 28px',
@@ -358,14 +425,15 @@ export default function FilePreviewModal({
               fontSize: '15px',
               fontWeight: 700,
               letterSpacing: '-0.01em',
-              cursor: selectedPages.size === 0 ? 'not-allowed' : 'pointer',
-              boxShadow: selectedPages.size > 0 ? '0 8px 20px rgba(26,35,64,0.2)' : 'none',
-              transition: 'background 0.2s, color 0.2s, box-shadow 0.2s'
+              cursor: selectedPages.size === 0 || file.isConverting ? 'not-allowed' : 'pointer',
+              boxShadow: selectedPages.size === 0 || file.isConverting ? 'none' : '0 8px 24px rgba(26,35,64,0.15)',
+              transition: 'all 0.2s'
             }}
           >
-            Save Selection
+            Apply Page Range
           </motion.button>
         </div>
+
         </motion.div>
       </motion.div>
     </AnimatePresence>

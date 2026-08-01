@@ -24,7 +24,7 @@ export default function LenisProvider({ children }: { children: React.ReactNode 
 
       lenisRef.current = lenis
 
-      function raf(time: number) {
+      const raf = (time: number) => {
         lenis.raf(time)
         requestAnimationFrame(raf)
       }

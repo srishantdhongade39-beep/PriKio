@@ -18,6 +18,121 @@ async function mapConcurrent<T, R>(items: T[], limit: number, fn: (item: T) => P
 
 export async function POST(request: Request) {
   try {
+    const contentType = request.headers.get('content-type') || ''
+    const supabase = await createClient()
+
+    // ─────────────────────────────────────────────────────────────
+    // FAST PATH: Direct Upload Session Initialization (JSON payload)
+    // Supports PDF, Images, and async-convertible files (PPTX, DOCX)
+    // ─────────────────────────────────────────────────────────────
+    if (contentType.includes('application/json')) {
+      const body = await request.json()
+      const clientFiles: Array<{
+        fileName: string
+        fileType?: string
+        pageCount?: number
+      }> = body.files || []
+
+      if (!clientFiles || clientFiles.length === 0) {
+        return NextResponse.json({ error: 'No files specified' }, { status: 400 })
+      }
+
+      const jobId = crypto.randomUUID()
+      const otp = Math.floor(1000 + Math.random() * 9000).toString()
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString()
+
+      // Generate signed upload URLs for each file so browser can upload directly
+      const processedFiles = await Promise.all(
+        clientFiles.map(async (file) => {
+          let fileName = file.fileName
+          const fileType = file.fileType || 'application/octet-stream'
+          const safeFileName = fileName.replace(/[^a-zA-Z0-9.\-_]/g, '_')
+          const storagePath = `${jobId}/${safeFileName}`
+
+          const ext = fileName.split('.').pop()?.toLowerCase() || ''
+          const needsConversion = !['pdf', 'jpg', 'jpeg', 'png', 'webp'].includes(ext)
+
+          // Generate signed upload URL
+          const { data: uploadData } = await supabase.storage
+            .from('documents')
+            .createSignedUploadUrl(storagePath)
+
+          let signedUploadUrl = uploadData?.signedUrl || ''
+          let token = uploadData?.token || ''
+
+          // Generate download/preview signed URL
+          const { data: signedUrlData } = await supabase.storage
+            .from('documents')
+            .createSignedUrl(storagePath, 3600)
+
+          return {
+            file_id: crypto.randomUUID(),
+            filename: fileName,
+            storage_path: storagePath,
+            pages_selected: 'All',
+            copies: 1,
+            color_mode: 'B&W',
+            paper_size: 'A4',
+            sides: 'Single',
+            subtotal_paise: 200,
+            page_count: file.pageCount || 1,
+            url: signedUrlData?.signedUrl || '',
+            signedUploadUrl,
+            uploadToken: token,
+            needsConversion
+          }
+        })
+      )
+
+      const totalPages = processedFiles.reduce((sum, f) => sum + f.page_count, 0)
+      
+      const dbFiles = processedFiles.map(f => {
+        const { page_count, url, signedUploadUrl, uploadToken, needsConversion, ...rest } = f
+        return rest
+      })
+
+      // Create initial print_job record
+      const jobRes = await supabase
+        .from('print_jobs')
+        .insert({
+          id: jobId,
+          session_id: crypto.randomUUID(),
+          status: 'pending',
+          files: dbFiles,
+          total_amount_paise: dbFiles.length * 200,
+          estimated_seconds: 10 * totalPages
+        })
+
+      if (jobRes.error) {
+        console.error('Job insert error:', jobRes.error)
+        return NextResponse.json({ error: 'Failed to create job record: ' + jobRes.error.message }, { status: 500 })
+      }
+
+      // Create OTP session
+      const otpRes = await supabase
+        .from('otp_sessions')
+        .insert({
+          print_job_id: jobId,
+          otp_code: otp,
+          expires_at: expiresAt
+        })
+
+      if (otpRes.error) {
+        console.error('OTP insert error:', otpRes.error)
+        return NextResponse.json({ error: 'Failed to create OTP session: ' + otpRes.error.message }, { status: 500 })
+      }
+
+      return NextResponse.json({
+        job_id: jobId,
+        otp: otp,
+        expires_in: 900,
+        files: processedFiles
+      })
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // FALLBACK PATH: Multipart FormData (for legacy clients)
+    // ─────────────────────────────────────────────────────────────
     const formData = await request.formData()
     const files = formData.getAll('files') as File[]
 
@@ -25,10 +140,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No files provided' }, { status: 400 })
     }
 
-    const supabase = await createClient()
     const jobId = crypto.randomUUID()
     
-    // Process files with controlled concurrency of 3
     const processedFiles = await mapConcurrent(files, 3, async (file) => {
       let buffer: ArrayBuffer | Buffer = await file.arrayBuffer()
       let fileName = file.name
@@ -115,7 +228,6 @@ export async function POST(request: Request) {
 
     const totalPages = processedFiles.reduce((sum, f) => sum + f.page_count, 0)
     
-    // Filter out UI-only props for the database
     const dbFiles = processedFiles.map(f => {
       const { page_count, url, ...rest } = f;
       return rest;
@@ -125,7 +237,7 @@ export async function POST(request: Request) {
       .from('print_jobs')
       .insert({
         id: jobId,
-        session_id: crypto.randomUUID(), // temporary session ID
+        session_id: crypto.randomUUID(),
         status: 'pending',
         files: dbFiles,
         total_amount_paise: dbFiles.length * 200,
