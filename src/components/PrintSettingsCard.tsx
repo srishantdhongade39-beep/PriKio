@@ -424,7 +424,7 @@ export default function PrintSettingsCard({
             flexDirection: "column", 
             alignItems: "center", 
             overflowY: "auto", 
-            padding: "clamp(8px, 2vw, 12px) clamp(14px, 4vw, 20px) 16px", 
+            padding: "clamp(8px, 2vw, 12px) 0 0", 
             WebkitOverflowScrolling: "touch",
             overscrollBehavior: "contain",
             scrollbarWidth: "thin",
@@ -435,11 +435,11 @@ export default function PrintSettingsCard({
             ref={scrollContentRef}
             style={{ 
               width: "100%", 
-              maxWidth: "460px", 
+              maxWidth: "calc(460px + clamp(14px, 4vw, 20px) * 2)", 
               display: "flex", 
               flexDirection: "column", 
               gap: "clamp(10px, 2.5vw, 16px)",
-              paddingBottom: "8px"
+              padding: "0 clamp(14px, 4vw, 20px) 24px"
             }}
           >
             <h2 style={{ margin: "0", textAlign: "center", fontSize: "clamp(1.1rem, 4vw, 1.35rem)", fontWeight: 700, color: "#1a2340", fontFamily: "'Quicksand', sans-serif" }}>
@@ -705,27 +705,31 @@ export default function PrintSettingsCard({
             </div>
 
           </div>
-        </div>
 
-        {/* ── Fixed Footer at Bottom of Card ── */}
-        <div style={{ 
-          width: "100%", 
-          maxWidth: "460px", 
-          padding: "clamp(12px, 3vw, 16px) clamp(16px, 4vw, 24px) max(clamp(16px, 4vw, 24px), env(safe-area-inset-bottom))", 
-          margin: "0 auto", 
-          flexShrink: 0, 
-          borderTop: "1px solid rgba(0, 0, 0, 0.05)", 
-          background: "rgba(255, 255, 255, 0.85)",
-          backdropFilter: "blur(16px)",
-          WebkitBackdropFilter: "blur(16px)",
-          boxShadow: "0 -8px 24px rgba(0, 0, 0, 0.04)"
-        }}>
-          <button className="confirm-btn" onClick={handleConfirm}>
-            <span>Confirm & Pay</span>
-            <span className="confirm-badge">₹ {printCost.toFixed(2)}</span>
-          </button>
+          {/* ── Sticky Footer inside Scrollable Area ── */}
+          <div style={{ 
+            position: "sticky",
+            bottom: 0,
+            zIndex: 10,
+            width: "100%", 
+            maxWidth: "calc(460px + clamp(14px, 4vw, 20px) * 2)", 
+            padding: "clamp(12px, 3vw, 16px) clamp(14px, 4vw, 20px) max(clamp(16px, 4vw, 24px), env(safe-area-inset-bottom))", 
+            margin: "0 auto", 
+            flexShrink: 0, 
+            borderTop: "1px solid rgba(0, 0, 0, 0.05)", 
+            background: "rgba(255, 255, 255, 0.85)",
+            backdropFilter: "blur(16px)",
+            WebkitBackdropFilter: "blur(16px)",
+            boxShadow: "0 -8px 24px rgba(0, 0, 0, 0.04)",
+            borderBottomLeftRadius: "16px",
+            borderBottomRightRadius: "16px"
+          }}>
+            <button className="confirm-btn" onClick={handleConfirm}>
+              <span>Confirm & Pay</span>
+              <span className="confirm-badge">₹ {printCost.toFixed(2)}</span>
+            </button>
+          </div>
         </div>
-
       </div>
     </>
   );
