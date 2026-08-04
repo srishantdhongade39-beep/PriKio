@@ -387,6 +387,15 @@ export default function PrintSettingsCard({
 
         @media (max-width: 768px) {
           .ps-card { border-radius: 0 !important; box-shadow: none !important; }
+          .cm-card { padding: 10px 10px 8px; border-radius: 12px; }
+          .cm-card-icon { height: 32px !important; margin-bottom: 4px !important; }
+          .pill-btn { padding: 8px 12px; font-size: 0.85rem; }
+          .pill-toggle { gap: 8px; }
+          .selected-files-box { max-height: 160px; }
+          .sec-label { margin: 0 0 5px !important; font-size: 0.70rem; }
+          .stepper-btn { width: 28px; height: 28px; font-size: 1rem; }
+          .stepper-val { min-width: 28px; font-size: 0.88rem; }
+          .stepper-controls { padding: 2px; }
         }
       `}</style>
 
@@ -415,7 +424,7 @@ export default function PrintSettingsCard({
             flexDirection: "column", 
             alignItems: "center", 
             overflowY: "auto", 
-            padding: "12px 20px 24px", 
+            padding: "clamp(8px, 2vw, 12px) clamp(14px, 4vw, 20px) 16px", 
             WebkitOverflowScrolling: "touch",
             overscrollBehavior: "contain",
             scrollbarWidth: "thin",
@@ -429,11 +438,11 @@ export default function PrintSettingsCard({
               maxWidth: "460px", 
               display: "flex", 
               flexDirection: "column", 
-              gap: "16px",
-              paddingBottom: "16px"
+              gap: "clamp(10px, 2.5vw, 16px)",
+              paddingBottom: "8px"
             }}
           >
-            <h2 style={{ margin: "0", textAlign: "center", fontSize: "1.35rem", fontWeight: 700, color: "#1a2340", fontFamily: "'Quicksand', sans-serif" }}>
+            <h2 style={{ margin: "0", textAlign: "center", fontSize: "clamp(1.1rem, 4vw, 1.35rem)", fontWeight: 700, color: "#1a2340", fontFamily: "'Quicksand', sans-serif" }}>
               Print Settings
             </h2>
 
@@ -600,7 +609,7 @@ export default function PrintSettingsCard({
                   <div style={{ position: "absolute", top: "12px", right: "12px", width: "18px", height: "18px", borderRadius: "50%", border: `2px solid ${activeColorMode === "bw" ? "#4a5fc1" : "#ddd"}`, background: activeColorMode === "bw" ? "#4a5fc1" : "white", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     {activeColorMode === "bw" && <svg width="10" height="10" viewBox="0 0 10 10"><polyline points="2,5 4,7 8,3" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                   </div>
-                  <div style={{ display: "flex", justifyContent: "center", marginBottom: "6px", height: "42px", alignItems: "flex-end" }}>
+                  <div className="cm-card-icon" style={{ display: "flex", justifyContent: "center", marginBottom: "6px", height: "42px", alignItems: "flex-end" }}>
                     <svg width="50" height="42" viewBox="0 0 60 52">
                       <ellipse cx="30" cy="38" rx="22" ry="10" fill="#e0e0e0"/>
                       <ellipse cx="22" cy="30" rx="14" ry="14" fill="#9e9e9e"/>
@@ -621,7 +630,7 @@ export default function PrintSettingsCard({
                   <div style={{ position: "absolute", top: "12px", right: "12px", width: "18px", height: "18px", borderRadius: "50%", border: `2px solid ${activeColorMode === "color" ? "#4a5fc1" : "#ddd"}`, background: activeColorMode === "color" ? "#4a5fc1" : "white", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     {activeColorMode === "color" && <svg width="10" height="10" viewBox="0 0 10 10"><polyline points="2,5 4,7 8,3" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                   </div>
-                  <div style={{ display: "flex", justifyContent: "center", marginBottom: "6px", height: "42px", alignItems: "flex-end" }}>
+                  <div className="cm-card-icon" style={{ display: "flex", justifyContent: "center", marginBottom: "6px", height: "42px", alignItems: "flex-end" }}>
                     <svg width="50" height="42" viewBox="0 0 60 52">
                       <ellipse cx="30" cy="40" rx="22" ry="8" fill="#e8d5f0" opacity="0.5"/>
                       <ellipse cx="20" cy="30" rx="14" ry="14" fill="#3b82f6" opacity="0.85"/>
@@ -699,7 +708,18 @@ export default function PrintSettingsCard({
         </div>
 
         {/* ── Fixed Footer at Bottom of Card ── */}
-        <div style={{ width: "100%", maxWidth: "460px", padding: "14px 0 20px", margin: "0 auto", flexShrink: 0, borderTop: "1px solid #f0f1f7", background: "#fff" }}>
+        <div style={{ 
+          width: "100%", 
+          maxWidth: "460px", 
+          padding: "clamp(12px, 3vw, 16px) clamp(16px, 4vw, 24px) max(clamp(16px, 4vw, 24px), env(safe-area-inset-bottom))", 
+          margin: "0 auto", 
+          flexShrink: 0, 
+          borderTop: "1px solid rgba(0, 0, 0, 0.05)", 
+          background: "rgba(255, 255, 255, 0.85)",
+          backdropFilter: "blur(16px)",
+          WebkitBackdropFilter: "blur(16px)",
+          boxShadow: "0 -8px 24px rgba(0, 0, 0, 0.04)"
+        }}>
           <button className="confirm-btn" onClick={handleConfirm}>
             <span>Confirm & Pay</span>
             <span className="confirm-badge">₹ {printCost.toFixed(2)}</span>

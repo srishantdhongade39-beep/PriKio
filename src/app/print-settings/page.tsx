@@ -59,7 +59,7 @@ export default function PrintSettings() {
   }
 
   return (
-    <div className="page-root" style={{ height: '100vh', maxHeight: '100vh', overflow: 'hidden' }}>
+    <div className="page-root" style={{ height: '100dvh', maxHeight: '100dvh', overflow: 'hidden' }}>
       {/* Desktop left branding panel */}
       <div className="desktop-left-panel">
         <div className="dlp-step-pill">Step 2 of 3</div>
@@ -80,7 +80,7 @@ export default function PrintSettings() {
         <hr className="dlp-divider" />
       </div>
 
-      <div className="desktop-right-panel" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100vh', maxHeight: '100vh' }}>
+      <div className="desktop-right-panel" style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100dvh', maxHeight: '100dvh' }}>
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, width: '100%', height: '100%', minHeight: 0, overflow: 'hidden' }}>
           <PrintSettingsCard
             files={files as any}
