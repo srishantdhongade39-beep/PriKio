@@ -27,17 +27,22 @@ export async function POST(request: Request) {
 
     // Build the new files array from the body payload which contains all uploaded files
     const newFiles = (body.files || []).map((bodyFile: any) => {
+      const fileCopies = bodyFile.copies || body.copies || 1
+      const fileColorMode = (bodyFile.colorMode || body.colorMode) === 'color' ? 'Color' : 'B&W'
+      const fileSides = (bodyFile.layout || bodyFile.sides || body.sides) === 'duplex' ? 'Double' : 'Single'
+      const fileOrientation = (bodyFile.orientation || body.orientation) === 'landscape' ? 'Landscape' : 'Portrait'
+
       return {
         file_id: bodyFile.id || crypto.randomUUID(),
         filename: bodyFile.fileName,
         storage_path: bodyFile.storage_path,
-        pages_selected: bodyFile.pageRange || 'All',
-        copies: body.copies || 1,
-        color_mode: body.colorMode === 'bw' ? 'B&W' : 'Color',
+        pages_selected: bodyFile.pageRange || bodyFile.pagesToPrint || 'All',
+        copies: fileCopies,
+        color_mode: fileColorMode,
         paper_size: 'A4',
-        sides: body.sides === 'duplex' ? 'Double' : 'Single',
-        orientation: body.orientation === 'landscape' ? 'Landscape' : 'Portrait',
-        subtotal_paise: body.total_amount ? body.total_amount * 100 : 200
+        sides: fileSides,
+        orientation: fileOrientation,
+        subtotal_paise: bodyFile.cost ? Math.round(bodyFile.cost * 100) : (body.total_amount ? Math.round(body.total_amount * 100) : 200)
       }
     })
 

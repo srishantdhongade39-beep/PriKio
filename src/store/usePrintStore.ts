@@ -11,6 +11,10 @@ export interface PrintFile {
   fileSizeMb: string;
   pageCount: number;
   pagesToPrint: string;
+  colorMode?: 'bw' | 'color';
+  layout?: 'simplex' | 'duplex';
+  orientation?: 'portrait' | 'landscape';
+  copies?: number;
   originalFile?: File | Blob;
   job_id?: string;
   otp?: string;
@@ -29,6 +33,8 @@ interface PrintState {
   setHasHydrated: (hydrated: boolean) => void;
   setFiles: (files: PrintFile[]) => void;
   updateFile: (id: string, updates: Partial<PrintFile>) => void;
+  updateFileSettings: (id: string, settings: Partial<Pick<PrintFile, 'colorMode' | 'layout' | 'orientation' | 'copies' | 'pagesToPrint'>>) => void;
+  applySettingsToAll: (settings: Partial<Pick<PrintFile, 'colorMode' | 'layout' | 'orientation' | 'copies'>>) => void;
   setJobData: (jobId: string, otp: string) => void;
   setPrintSettings: (settings: any) => void;
   updatePageRange: (id: string, range: string) => void;
@@ -46,9 +52,27 @@ export const usePrintStore = create<PrintState>()(
       lastUpdated: undefined,
       _hasHydrated: false,
       setHasHydrated: (hydrated) => set({ _hasHydrated: hydrated }),
-      setFiles: (files) => set({ files, lastUpdated: Date.now() }),
+      setFiles: (files) => set({ 
+        files: files.map(f => ({
+          colorMode: 'bw',
+          layout: 'simplex',
+          orientation: 'portrait',
+          copies: 1,
+          pagesToPrint: 'All',
+          ...f
+        })), 
+        lastUpdated: Date.now() 
+      }),
       updateFile: (id, updates) => set((state) => ({
         files: state.files.map(f => f.id === id ? { ...f, ...updates } : f),
+        lastUpdated: Date.now()
+      })),
+      updateFileSettings: (id, settings) => set((state) => ({
+        files: state.files.map(f => f.id === id ? { ...f, ...settings } : f),
+        lastUpdated: Date.now()
+      })),
+      applySettingsToAll: (settings) => set((state) => ({
+        files: state.files.map(f => ({ ...f, ...settings })),
         lastUpdated: Date.now()
       })),
       setJobData: (jobId, otp) => set({ globalJobId: jobId, globalOtp: otp, lastUpdated: Date.now() }),

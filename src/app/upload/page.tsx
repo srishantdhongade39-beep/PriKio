@@ -164,7 +164,11 @@ export default function UploadScreen() {
           fileName: serverFile.filename,
           fileSizeMb: originalItem.size.replace(" MB", ""),
           pageCount: serverFile.page_count || originalItem.pageCount || 1,
-          pagesToPrint: originalItem.pagesToPrint,
+          pagesToPrint: originalItem.pagesToPrint || 'All',
+          colorMode: 'bw',
+          layout: 'duplex',
+          orientation: 'portrait',
+          copies: 1,
           url: serverFile.url,
           originalFile: originalItem.file,
           isConverting: needsConversion

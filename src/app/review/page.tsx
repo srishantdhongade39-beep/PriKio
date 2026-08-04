@@ -59,7 +59,11 @@ export default function ReviewPage() {
             fileUrl: f.url,
             fileSizeMb: parseFloat(f.fileSizeMb),
             pageCount: f.pageCount,
-            pageRange: f.pagesToPrint
+            pageRange: f.pagesToPrint || 'All',
+            colorMode: f.colorMode || settings.colorMode || 'bw',
+            layout: f.layout || settings.layout || 'duplex',
+            orientation: f.orientation || settings.orientation || 'portrait',
+            copies: f.copies || settings.copies || 1,
           })),
           colorMode: settings.colorMode,
           sides: settings.layout,
