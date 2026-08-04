@@ -2,21 +2,22 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Script from 'next/script'
 import PaymentSuccess from '@/components/PaymentSuccess'
-
-import { usePrintStore } from '@/store/usePrintStore'
+import { usePrintStore, useHydratedPrintStore } from '@/store/usePrintStore'
 
 export default function Payment() {
   const router = useRouter()
+  const hasHydrated = useHydratedPrintStore()
+  const { globalJobId } = usePrintStore()
+
   const [printJob, setPrintJob] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  
-  const { globalJobId } = usePrintStore()
 
   useEffect(() => {
-    const printJobId = sessionStorage.getItem('printJobId')
+    if (!hasHydrated) return
+
+    const printJobId = globalJobId || sessionStorage.getItem('printJobId')
     if (!printJobId) {
       router.push('/upload')
       return
@@ -26,9 +27,13 @@ export default function Payment() {
       try {
         const cached = sessionStorage.getItem('printJobData')
         if (cached) {
-          setPrintJob(JSON.parse(cached))
-          setLoading(false)
-          return
+          try {
+            setPrintJob(JSON.parse(cached))
+            setLoading(false)
+            return
+          } catch (e) {
+            console.error("Failed to parse cached printJobData", e)
+          }
         }
 
         const res = await fetch(`/api/print-jobs/${printJobId}`)
@@ -45,11 +50,11 @@ export default function Payment() {
       }
     }
     fetchJob()
-  }, [router])
+  }, [hasHydrated, globalJobId, router])
 
   const handleSimulateWebhookAndRedirect = async () => {
     // Simulate webhook by directly updating Supabase status so the Status screen knows it's paid
-    const realJobId = globalJobId || printJob?.id
+    const realJobId = globalJobId || printJob?.id || sessionStorage.getItem('printJobId')
     if (!realJobId) {
       router.push('/')
       return
@@ -76,10 +81,16 @@ export default function Payment() {
     router.push(`/status?id=${realJobId}`)
   }
 
-  if (loading) return null
+  if (!hasHydrated || loading) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--grey)', fontSize: '14px', fontWeight: 500 }}>
+        Loading payment status...
+      </div>
+    )
+  }
 
   if (error || !printJob) {
-    return <div style={{ padding: '20px', color: 'red' }}>{error || 'Failed to load print job.'}</div>
+    return <div style={{ padding: '20px', color: 'red', textAlign: 'center' }}>{error || 'Failed to load print job.'}</div>
   }
   
   return (

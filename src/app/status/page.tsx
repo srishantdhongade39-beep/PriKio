@@ -1,13 +1,16 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import AppHeader from '@/components/AppHeader'
-import { usePrintStore } from '@/store/usePrintStore'
+import { usePrintStore, useHydratedPrintStore } from '@/store/usePrintStore'
 
 function StatusScreen() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const urlJobId = searchParams.get('id')
   
+  const hasHydrated = useHydratedPrintStore()
   const { globalOtp, globalJobId, clearFiles } = usePrintStore()
   
   const [timeLeft, setTimeLeft] = useState(300)
@@ -17,10 +20,16 @@ function StatusScreen() {
   const [jobStatus, setJobStatus] = useState('pending')
 
   useEffect(() => {
-    let currentJobId = globalJobId || sessionStorage.getItem('printJobId');
+    if (!hasHydrated) return
+
+    let currentJobId = urlJobId || globalJobId || sessionStorage.getItem('printJobId');
     if (!currentJobId) {
       router.push('/');
       return;
+    }
+
+    if (currentJobId && currentJobId !== globalJobId) {
+      usePrintStore.getState().setJobData(currentJobId, globalOtp || '');
     }
 
     const fetchStatus = async () => {
@@ -66,7 +75,7 @@ function StatusScreen() {
       clearInterval(interval);
       clearInterval(statusInterval);
     }
-  }, [globalOtp, globalJobId, router])
+  }, [hasHydrated, urlJobId, globalOtp, globalJobId, router])
 
   const expired = timeLeft === 0;
   const mins = String(Math.floor(timeLeft / 60)).padStart(2, "0");
@@ -236,24 +245,32 @@ function StatusScreen() {
         }
         
         .vk-sheet-overlay {
-           position: absolute; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
-           opacity: 0; pointer-events: none; transition: opacity 0.4s ease;
-           z-index: 10;
+           position: absolute; inset: 0; background: rgba(10, 15, 30, 0.6); backdrop-filter: blur(4px);
+           -webkit-backdrop-filter: blur(4px);
+           opacity: 0; pointer-events: none; visibility: hidden;
+           transition: opacity 0.35s ease, visibility 0.35s ease;
+           z-index: 99;
         }
         .vk-sheet-overlay.open {
-           opacity: 1; pointer-events: auto;
+           opacity: 1; pointer-events: auto; visibility: visible;
         }
 
         .vk-bottom-sheet {
            position: absolute; bottom: 0; left: 0; right: 0;
            background: #fff; border-top-left-radius: 28px; border-top-right-radius: 28px;
-           padding: 40px 32px 50px; transform: translateY(100%);
-           transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1);
-           z-index: 20; box-shadow: 0 -24px 48px rgba(0,0,0,0.2);
+           padding: 28px 24px 44px; transform: translateY(105%);
+           opacity: 0; visibility: hidden; pointer-events: none;
+           transition: transform 0.38s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.25s ease, visibility 0.38s ease;
+           z-index: 100; box-shadow: 0 -24px 48px rgba(0,0,0,0.2);
            display: flex; flex-direction: column; align-items: center;
         }
         .vk-bottom-sheet.open {
            transform: translateY(0);
+           opacity: 1; visibility: visible; pointer-events: auto;
+        }
+        .vk-bs-handle {
+           width: 36px; height: 4px; background: #dcdfe8; border-radius: 2px;
+           margin-bottom: 20px;
         }
         .vk-bs-close {
            position: absolute; top: 16px; right: 16px;
@@ -286,8 +303,24 @@ function StatusScreen() {
             margin: 0;
             justify-content: flex-start;
           }
+          .vk-sheet-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 999;
+          }
           .vk-bottom-sheet {
             position: fixed;
+            bottom: 0; left: 0; right: 0;
+            width: 100%;
+            max-width: 100vw;
+            box-sizing: border-box;
+            border-bottom-left-radius: 0;
+            border-bottom-right-radius: 0;
+            z-index: 1000;
+            transform: translateY(105%);
+          }
+          .vk-bottom-sheet.open {
+            transform: translateY(0);
           }
         }
         .vk-mascot {
@@ -515,36 +548,38 @@ function StatusScreen() {
               </div>
             )}
 
-            {/* Bottom Sheet for OTP */}
-            {!isPrinting && !isCompleted && (
-              <>
-                <div 
-                  className={`vk-sheet-overlay ${showOTP ? 'open' : ''}`}
-                  onClick={() => setShowOTP(false)}
-                />
-                <div className={`vk-bottom-sheet ${showOTP ? 'open' : ''}`}>
-                  <button className="vk-bs-close" onClick={() => setShowOTP(false)}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                  </button>
-                  
-                  <h2 style={{ fontSize: '26px', color: '#1a2340', fontWeight: 800, margin: '0 0 32px' }}>OTP Code</h2>
-                  
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: 'clamp(12px,3vw,20px)', marginBottom: '40px' }}>
-                    {otpDigits.map((d, i) => (
-                      <div key={i} className="vk-otp-digit-box">
-                        {d}
-                      </div>
-                    ))}
-                  </div>
-                  
-                  <button className="vk-btn-primary" onClick={handleCopy} style={{ padding: '16px', fontSize: '16px', marginBottom: 0 }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
-                    {copied ? "Copied to Clipboard!" : "Copy OTP Code"}
-                  </button>
-                </div>
-              </>
-            )}
           </div>
+
+          {/* Bottom Sheet for OTP (Outside scrollable card to prevent scroll leaks) */}
+          {!isPrinting && !isCompleted && (
+            <>
+              <div 
+                className={`vk-sheet-overlay ${showOTP ? 'open' : ''}`}
+                onClick={() => setShowOTP(false)}
+              />
+              <div className={`vk-bottom-sheet ${showOTP ? 'open' : ''}`}>
+                <div className="vk-bs-handle" />
+                <button className="vk-bs-close" onClick={() => setShowOTP(false)} aria-label="Close OTP popup">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+                
+                <h2 style={{ fontSize: '24px', color: '#1a2340', fontWeight: 800, margin: '0 0 28px' }}>OTP Code</h2>
+                
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 'clamp(12px,3vw,20px)', marginBottom: '36px' }}>
+                  {otpDigits.map((d, i) => (
+                    <div key={i} className="vk-otp-digit-box">
+                      {d}
+                    </div>
+                  ))}
+                </div>
+                
+                <button className="vk-btn-primary" onClick={handleCopy} style={{ padding: '16px', fontSize: '16px', marginBottom: 0 }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+                  {copied ? "Copied to Clipboard!" : "Copy OTP Code"}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </>

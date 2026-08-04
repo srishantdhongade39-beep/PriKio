@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
-import { usePrintStore } from '@/store/usePrintStore'
+import { usePrintStore, useHydratedPrintStore } from '@/store/usePrintStore'
 import dynamic from 'next/dynamic'
 import PrintSettingsCard from '@/components/PrintSettingsCard'
 
@@ -13,6 +13,7 @@ export default function PrintSettings() {
   const router = useRouter()
   const { profile } = useAuth()
   
+  const hasHydrated = useHydratedPrintStore()
   const { files, updatePageRange } = usePrintStore()
   
   const [submitting, setSubmitting] = useState(false)
@@ -20,10 +21,13 @@ export default function PrintSettings() {
   const [previewFileId, setPreviewFileId] = useState<string | null>(null)
 
   useEffect(() => {
+    // Only evaluate navigation guard after store hydration from localStorage completes
+    if (!hasHydrated) return
+
     if (files.length === 0) {
       router.push('/upload')
     }
-  }, [files.length, router])
+  }, [hasHydrated, files.length, router])
 
   const handleConfirmPay = async (settings: any) => {
     if (files.length === 0) return
@@ -42,10 +46,17 @@ export default function PrintSettings() {
     }
 
     sessionStorage.setItem('printSettings', JSON.stringify(settings))
+    usePrintStore.getState().setPrintSettings(settings)
     router.push('/review')
   }
 
-  if (files.length === 0) return null
+  if (!hasHydrated || files.length === 0) {
+    return (
+      <div className="page-root" style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: 'var(--grey)', fontSize: '14px', fontWeight: 500 }}>Loading print options...</div>
+      </div>
+    )
+  }
 
   return (
     <div className="page-root" style={{ height: '100vh', maxHeight: '100vh', overflow: 'hidden' }}>

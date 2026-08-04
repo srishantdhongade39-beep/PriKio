@@ -3,30 +3,43 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
-import { usePrintStore } from '@/store/usePrintStore'
+import { usePrintStore, useHydratedPrintStore } from '@/store/usePrintStore'
 import OrderReview from '@/components/OrderReview'
 
 export default function ReviewPage() {
   const router = useRouter()
   const { profile } = useAuth()
-  const { files, globalJobId } = usePrintStore()
+  const hasHydrated = useHydratedPrintStore()
+  const { files, globalJobId, printSettings } = usePrintStore()
   
   const [settings, setSettings] = useState<any>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
+    if (!hasHydrated) return
+
     if (files.length === 0) {
       router.push('/upload')
       return
     }
+
     const storedSettings = sessionStorage.getItem('printSettings')
     if (storedSettings) {
-      setSettings(JSON.parse(storedSettings))
+      try {
+        setSettings(JSON.parse(storedSettings))
+        return
+      } catch (e) {
+        console.error("Failed to parse sessionStorage printSettings", e)
+      }
+    }
+
+    if (printSettings) {
+      setSettings(printSettings)
     } else {
       router.push('/print-settings')
     }
-  }, [files.length, router])
+  }, [hasHydrated, files.length, printSettings, router])
 
   const handleProceed = async () => {
     if (files.length === 0 || !settings) return
@@ -62,6 +75,7 @@ export default function ReviewPage() {
 
       sessionStorage.setItem('printJobId', result.data.id)
       sessionStorage.setItem('printJobData', JSON.stringify(result.data))
+      usePrintStore.getState().setJobData(result.data.id, result.data.otp || '')
       router.push('/payment')
       
     } catch (err: any) {
@@ -70,7 +84,13 @@ export default function ReviewPage() {
     }
   }
 
-  if (files.length === 0 || !settings) return null
+  if (!hasHydrated || files.length === 0 || !settings) {
+    return (
+      <div className="page-root" style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: 'var(--grey)', fontSize: '14px', fontWeight: 500 }}>Loading order review...</div>
+      </div>
+    )
+  }
 
   return (
     <div className="page-root">
