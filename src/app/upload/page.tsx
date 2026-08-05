@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useRouter } from 'next/navigation'
 import { usePrintStore } from '@/store/usePrintStore'
 import AppHeader from '@/components/AppHeader'
@@ -16,6 +16,24 @@ export default function UploadScreen() {
   const [uploadIndex, setUploadIndex] = useState(1)
   const inputRef = useRef<HTMLInputElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+
+  // Fake progress illusion to prevent user frustration
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>
+    if (uploading) {
+      interval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 95) return 95
+          const diff = 95 - prev
+          const step = Math.max(0.5, diff * 0.08)
+          return prev + step
+        })
+      }, 350)
+    }
+    return () => {
+      if (interval) clearInterval(interval)
+    }
+  }, [uploading])
 
   const handleFiles = async (incoming: FileList | File[]) => {
     const allowedExtensions = ['.pdf', '.docx', '.doc', '.txt', '.xlsx', '.xls', '.csv', '.pptx', '.ppt', '.jpg', '.jpeg', '.png', '.html', '.htm', '.xml', '.webp']
@@ -89,7 +107,7 @@ export default function UploadScreen() {
       // ─────────────────────────────────────────────────────────────
       // ULTRA-FAST DIRECT PATH: Metadata Init + Direct Supabase Upload
       // ─────────────────────────────────────────────────────────────
-      setUploadProgress(20)
+      setUploadProgress(prev => Math.max(prev, 20))
 
       // 1. Initialize session and get signed upload URLs / storage paths
       const initRes = await fetch('/api/upload', {
@@ -146,7 +164,7 @@ export default function UploadScreen() {
 
         completedUploads++
         const progressPercent = 25 + Math.round((completedUploads / totalFiles) * 70)
-        setUploadProgress(progressPercent)
+        setUploadProgress(prev => Math.max(prev, progressPercent))
       })
 
       await Promise.all(uploadPromises)
