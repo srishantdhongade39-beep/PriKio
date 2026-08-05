@@ -438,8 +438,10 @@ export default function PrintSettingsCard({
               maxWidth: "calc(460px + clamp(14px, 4vw, 20px) * 2)", 
               display: "flex", 
               flexDirection: "column", 
-              gap: "clamp(10px, 2.5vw, 16px)",
-              padding: "0 clamp(14px, 4vw, 20px) 24px"
+              gap: "clamp(20px, 4vh, 36px)",
+              padding: "10px clamp(14px, 4vw, 20px) 32px",
+              flex: "1 0 auto",
+              justifyContent: "flex-start"
             }}
           >
             <h2 style={{ margin: "0", textAlign: "center", fontSize: "clamp(1.1rem, 4vw, 1.35rem)", fontWeight: 700, color: "#1a2340", fontFamily: "'Quicksand', sans-serif" }}>
@@ -706,16 +708,15 @@ export default function PrintSettingsCard({
 
           </div>
 
-          {/* ── Sticky Footer inside Scrollable Area ── */}
-          <div style={{ 
-            position: "sticky",
-            bottom: 0,
-            zIndex: 10,
-            width: "100%", 
-            maxWidth: "calc(460px + clamp(14px, 4vw, 20px) * 2)", 
-            padding: "clamp(12px, 3vw, 16px) clamp(14px, 4vw, 20px) max(clamp(16px, 4vw, 24px), env(safe-area-inset-bottom))", 
-            margin: "0 auto", 
-            flexShrink: 0, 
+            <div style={{ 
+              position: "sticky",
+              bottom: 0,
+              zIndex: 10,
+              width: "100%", 
+              maxWidth: "calc(460px + clamp(14px, 4vw, 20px) * 2)", 
+              padding: "clamp(12px, 3vw, 16px) clamp(14px, 4vw, 20px) max(clamp(16px, 4vw, 24px), env(safe-area-inset-bottom))", 
+              margin: "auto auto 0 auto", 
+              flexShrink: 0, 
             borderTop: "1px solid rgba(0, 0, 0, 0.05)", 
             background: "rgba(255, 255, 255, 0.85)",
             backdropFilter: "blur(16px)",
