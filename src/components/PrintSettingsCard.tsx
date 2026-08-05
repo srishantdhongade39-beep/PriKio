@@ -707,24 +707,23 @@ export default function PrintSettingsCard({
             </div>
 
           </div>
+        </div>
 
-            <div style={{ 
-              position: "sticky",
-              bottom: 0,
-              zIndex: 10,
-              width: "100%", 
-              maxWidth: "calc(460px + clamp(14px, 4vw, 20px) * 2)", 
-              padding: "clamp(12px, 3vw, 16px) clamp(14px, 4vw, 20px) max(clamp(16px, 4vw, 24px), env(safe-area-inset-bottom))", 
-              margin: "auto auto 0 auto", 
-              flexShrink: 0, 
-            borderTop: "1px solid rgba(0, 0, 0, 0.05)", 
-            background: "rgba(255, 255, 255, 0.85)",
-            backdropFilter: "blur(16px)",
-            WebkitBackdropFilter: "blur(16px)",
-            boxShadow: "0 -8px 24px rgba(0, 0, 0, 0.04)",
-            borderBottomLeftRadius: "16px",
-            borderBottomRightRadius: "16px"
-          }}>
+        {/* ── Fixed Footer outside Scrollable Area ── */}
+        <div style={{ 
+          width: "100%", 
+          padding: "clamp(12px, 3vw, 16px) clamp(14px, 4vw, 20px) max(clamp(16px, 4vw, 24px), env(safe-area-inset-bottom))", 
+          flexShrink: 0, 
+          borderTop: "1px solid rgba(0, 0, 0, 0.05)", 
+          background: "rgba(255, 255, 255, 0.85)",
+          backdropFilter: "blur(16px)",
+          WebkitBackdropFilter: "blur(16px)",
+          boxShadow: "0 -8px 24px rgba(0, 0, 0, 0.04)",
+          borderBottomLeftRadius: "16px",
+          borderBottomRightRadius: "16px",
+          marginTop: "auto"
+        }}>
+          <div style={{ margin: "0 auto", width: "100%", maxWidth: "calc(460px + clamp(14px, 4vw, 20px) * 2)" }}>
             <button className="confirm-btn" onClick={handleConfirm}>
               <span>Confirm & Pay</span>
               <span className="confirm-badge">₹ {printCost.toFixed(2)}</span>
