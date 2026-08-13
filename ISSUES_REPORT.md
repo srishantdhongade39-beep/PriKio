@@ -91,3 +91,7 @@ This document serves as a persistent record of critical edge cases, hardware vul
 ### 4.3 Password-Protected Documents
 * **Problem:** Encrypted PDFs will crash the hardware print spooler.
 * **Solution:** Use `pypdf` during backend upload validation to detect encryption metadata. Instantly reject with an HTTP 400 error before the user reaches the payment phase.
+
+### 4.4 URL Encoding & Filename Sanitation Mismatch
+* **Problem:** If a user uploads a file with spaces or special characters (e.g. `final ppt (1).pdf`), and the frontend manually reconstructs the storage path using the un-sanitized filename, the Raspberry Pi printer script will receive a 400 Bad Request / 404 Not Found error when trying to download the file from Supabase via an unencoded URL path.
+* **Solution:** Generate a `safeFileName` (replacing non-alphanumeric characters with underscores) during the initial upload initialization. Pass this sanitized `storagePath` back to the frontend and ensure all subsequent database inserts (like the `print_jobs` table) strictly use this sanitized path rather than re-constructing it from the original filename.

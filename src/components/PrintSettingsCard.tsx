@@ -172,7 +172,7 @@ export default function PrintSettingsCard({
           flex: 1;
           border: 1.8px solid #e8eaef;
           border-radius: 16px;
-          padding: 14px 14px 12px;
+          padding: 18px 16px 14px;
           cursor: pointer;
           transition: border-color 0.2s, box-shadow 0.2s, background 0.2s, transform 0.15s;
           position: relative;
@@ -194,11 +194,11 @@ export default function PrintSettingsCard({
         .pill-btn {
           flex: 1;
           min-width: 120px;
-          padding: 11px 16px;
+          padding: 14px 20px;
           border-radius: 50px;
           border: 1.8px solid #e8eaef;
           background: white;
-          font-size: 0.90rem;
+          font-size: 0.96rem;
           font-weight: 500;
           color: #555;
           cursor: pointer;
@@ -227,11 +227,11 @@ export default function PrintSettingsCard({
           gap: 0;
         }
         .stepper-btn {
-          width: 32px;
-          height: 32px;
+          width: 38px;
+          height: 38px;
           border: none;
           background: transparent;
-          font-size: 1.1rem;
+          font-size: 1.2rem;
           color: #ffffff;
           cursor: pointer;
           display: flex;
@@ -245,9 +245,9 @@ export default function PrintSettingsCard({
         .stepper-btn:hover { background: rgba(255,255,255,0.15); }
         .stepper-btn:active { background: rgba(255,255,255,0.25); }
         .stepper-val {
-          min-width: 32px;
+          min-width: 38px;
           text-align: center;
-          font-size: 0.94rem;
+          font-size: 1rem;
           font-weight: 800;
           color: #ffffff;
         }
@@ -255,12 +255,12 @@ export default function PrintSettingsCard({
         /* confirm & pay button */
         .confirm-btn {
           width: 100%;
-          padding: 13px 20px;
+          padding: 16px 24px;
           border-radius: 50px;
           border: none;
           background: #1a2340;
           color: white;
-          font-size: 0.98rem;
+          font-size: 1.05rem;
           font-weight: 600;
           cursor: pointer;
           display: flex;
@@ -438,8 +438,8 @@ export default function PrintSettingsCard({
               maxWidth: "calc(460px + clamp(14px, 4vw, 20px) * 2)", 
               display: "flex", 
               flexDirection: "column", 
-              gap: "clamp(10px, 2.5vw, 16px)",
-              padding: "0 clamp(14px, 4vw, 20px) 24px"
+              gap: "clamp(16px, 3.5vh, 26px)",
+              padding: "0 clamp(14px, 4vw, 20px) 32px"
             }}
           >
             <h2 style={{ margin: "0", textAlign: "center", fontSize: "clamp(1.1rem, 4vw, 1.35rem)", fontWeight: 700, color: "#1a2340", fontFamily: "'Quicksand', sans-serif" }}>
@@ -714,7 +714,7 @@ export default function PrintSettingsCard({
             width: "100%", 
             maxWidth: "calc(460px + clamp(14px, 4vw, 20px) * 2)", 
             padding: "clamp(12px, 3vw, 16px) clamp(14px, 4vw, 20px) max(clamp(16px, 4vw, 24px), env(safe-area-inset-bottom))", 
-            margin: "0 auto", 
+            margin: "auto auto 0 auto", 
             flexShrink: 0, 
             borderTop: "1px solid rgba(0, 0, 0, 0.05)", 
             background: "rgba(255, 255, 255, 0.85)",
