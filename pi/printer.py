@@ -25,8 +25,23 @@ def print_job(job_id, file_info, supabase_client):
     logger.info(f"Downloading {storage_path} from Supabase...")
     
     try:
-        # Get the file data from the 'documents' bucket
-        response = supabase_client.storage.from_('documents').download(storage_path)
+        try:
+            response = supabase_client.storage.from_('documents').download(storage_path)
+        except Exception as e:
+            error_str = str(e).lower()
+            if "not found" in error_str or "404" in error_str or "not_found" in error_str:
+                # Try replacing spaces and special characters with underscores like the web app does
+                parts = storage_path.split('/')
+                if len(parts) > 1:
+                    import re
+                    parts[-1] = re.sub(r'[^a-zA-Z0-9.\-_]', '_', parts[-1])
+                    alt_storage_path = '/'.join(parts)
+                    logger.warning(f"File not found. Retrying with safe path: {alt_storage_path}")
+                    response = supabase_client.storage.from_('documents').download(alt_storage_path)
+                else:
+                    raise e
+            else:
+                raise e
         
         import tempfile
         import platform

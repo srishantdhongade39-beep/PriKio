@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       return {
         file_id: existingFile?.file_id || bodyFile.id || crypto.randomUUID(),
         filename: bodyFile.fileName,
-        storage_path: existingFile?.storage_path || bodyFile.storage_path,
+        storage_path: (existingFile?.storage_path || bodyFile.storage_path || '').replace(/[^a-zA-Z0-9.\-\/_]/g, '_'),
         pages_selected: bodyFile.pageRange || bodyFile.pagesToPrint || 'All',
         copies: fileCopies,
         color_mode: fileColorMode,

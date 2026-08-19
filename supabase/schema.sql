@@ -42,6 +42,8 @@ create table kiosks (
   floor         text,
   is_online     boolean default true,
   queue_count   int default 0,
+  ink_level_percent int default 100,
+  paper_level_percent int default 100,
   last_ping     timestamptz
 );
 
@@ -89,6 +91,8 @@ alter table transactions enable row level security;
 alter table cloud_documents enable row level security;
 alter table kiosks enable row level security;
 alter table print_otps enable row level security;
+alter table notifications enable row level security;
+alter table admin_invites enable row level security;
 
 -- profiles: user can only read/update their own row
 create policy "Users can view own profile" on profiles for select using (auth.uid() = id);
@@ -134,9 +138,16 @@ create policy "Authenticated users can view kiosks" on kiosks for select using (
 -- Auth Hook Trigger to automatically create a profile when a new user signs up
 create or replace function public.handle_new_user()
 returns trigger as $$
+declare
+  assigned_role text := 'student';
 begin
-  insert into public.profiles (id, full_name)
-  values (new.id, new.raw_user_meta_data->>'full_name');
+  select role into assigned_role from public.admin_invites where email = new.email;
+  if assigned_role is null then
+    assigned_role := 'student';
+  end if;
+
+  insert into public.profiles (id, full_name, role)
+  values (new.id, new.raw_user_meta_data->>'full_name', assigned_role);
   return new;
 end;
 $$ language plpgsql security definer;
