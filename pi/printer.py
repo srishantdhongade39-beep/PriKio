@@ -2,6 +2,9 @@ import logging
 import time
 import subprocess
 import os
+import re
+import tempfile
+import platform
 
 logger = logging.getLogger(__name__)
 
@@ -25,26 +28,37 @@ def print_job(job_id, file_info, supabase_client):
     logger.info(f"Downloading {storage_path} from Supabase...")
     
     try:
+        response = None
+        # Attempt 1: Direct path
         try:
             response = supabase_client.storage.from_('documents').download(storage_path)
         except Exception as e:
-            error_str = str(e).lower()
-            if "not found" in error_str or "404" in error_str or "not_found" in error_str:
-                # Try replacing spaces and special characters with underscores like the web app does
-                parts = storage_path.split('/')
-                if len(parts) > 1:
-                    import re
-                    parts[-1] = re.sub(r'[^a-zA-Z0-9.\-_]', '_', parts[-1])
-                    alt_storage_path = '/'.join(parts)
-                    logger.warning(f"File not found. Retrying with safe path: {alt_storage_path}")
+            logger.warning(f"Direct download failed ({e}). Retrying with sanitized path...")
+            # Attempt 2: Replace spaces and special characters with underscores
+            parts = storage_path.split('/')
+            if len(parts) > 1:
+                safe_name = re.sub(r'[^a-zA-Z0-9.\-_]', '_', parts[-1])
+                alt_storage_path = f"{parts[0]}/{safe_name}"
+                logger.info(f"Retrying download with safe path: {alt_storage_path}")
+                try:
                     response = supabase_client.storage.from_('documents').download(alt_storage_path)
-                else:
-                    raise e
+                except Exception as e2:
+                    logger.warning(f"Safe path download failed ({e2}). Querying bucket directory...")
+                    # Attempt 3: List files in the job folder to find the actual uploaded file
+                    try:
+                        file_list = supabase_client.storage.from_('documents').list(parts[0])
+                        if file_list and len(file_list) > 0:
+                            actual_name = file_list[0].get('name')
+                            matched_path = f"{parts[0]}/{actual_name}"
+                            logger.info(f"Found file in folder: {matched_path}. Downloading...")
+                            response = supabase_client.storage.from_('documents').download(matched_path)
+                        else:
+                            raise e2
+                    except Exception:
+                        raise e2
             else:
                 raise e
         
-        import tempfile
-        import platform
         # Save locally
         local_filepath = os.path.join(tempfile.gettempdir(), filename)
         with open(local_filepath, "wb") as f:
@@ -55,14 +69,12 @@ def print_job(job_id, file_info, supabase_client):
             try:
                 from PIL import Image
                 with Image.open(local_filepath) as img:
-                    # Rotate 90 degrees and expand bounding box
                     img_rotated = img.rotate(90, expand=True)
                     img_rotated.save(local_filepath)
                 logger.info("Successfully rotated image to Landscape using Pillow.")
-                # Change orientation back to portrait for CUPS so it doesn't double-rotate
                 orientation = "portrait"
             except ImportError:
-                logger.warning("Pillow not installed! Could not physically rotate image. Please run 'pip install Pillow'")
+                logger.warning("Pillow not installed! Could not physically rotate image.")
             except Exception as e:
                 logger.warning(f"Error rotating image: {e}")
                 
@@ -77,11 +89,13 @@ def print_job(job_id, file_info, supabase_client):
             printer_name = os.getenv("PRINTER_NAME", "test_printer")
             logger.info(f"Sending to CUPS printer: {printer_name}...")
             
+            copies_num = int(copies) if copies else 1
+            
             # Construct CUPS command with options
             lp_cmd = ["lp", "-d", printer_name]
             
-            # We removed copies from lp_cmd because we will just loop the command
-            copies_num = int(copies) if copies else 1
+            # Copies
+            lp_cmd.extend(["-n", str(copies_num)])
             
             # Sides (Duplex)
             if sides.lower() == "double":
@@ -95,7 +109,7 @@ def print_job(job_id, file_info, supabase_client):
             else:
                 lp_cmd.extend(["-o", "print-color-mode=monochrome"])
 
-            # Orientation (will be portrait if we already rotated it manually)
+            # Orientation
             if orientation.lower() == "landscape":
                 lp_cmd.extend(["-o", "landscape", "-o", "orientation-requested=4"])
             else:
@@ -106,17 +120,13 @@ def print_job(job_id, file_info, supabase_client):
             if pages_selected and str(pages_selected).lower() != "all":
                 lp_cmd.extend(["-o", f"page-ranges={pages_selected}"])
 
-            # Add fit-to-page so images actually rotate and fit properly
+            # Add fit-to-page so images rotate and fit properly
             lp_cmd.extend(["-o", "fit-to-page"])
 
-            # Add the filepath at the end
+            # Add filepath at the very end
             lp_cmd.append(local_filepath)
-
-            # Run the lp command once with the native CUPS copies flag
-            copies_num = int(copies) if copies else 1
-            lp_cmd.extend(["-n", str(copies_num)])
             
-            logger.info(f"Sending {copies_num} copies to CUPS...")
+            logger.info(f"Executing: {' '.join(lp_cmd)}")
             result = subprocess.run(
                 lp_cmd,
                 capture_output=True,
@@ -125,9 +135,17 @@ def print_job(job_id, file_info, supabase_client):
             
             if result.returncode == 0:
                 logger.info(f"CUPS Output: {result.stdout.strip()}")
-                logger.info("Print job sent to queue successfully!")
+                logger.info("Print job sent to printer queue successfully!")
             else:
                 logger.error(f"CUPS Error: {result.stderr.strip()}")
+                logger.info("Retrying with standard fallback command...")
+                fallback_cmd = ["lp", "-d", printer_name, "-n", str(copies_num), "-o", "fit-to-page", local_filepath]
+                fallback_res = subprocess.run(fallback_cmd, capture_output=True, text=True)
+                if fallback_res.returncode == 0:
+                    logger.info(f"Fallback CUPS Output: {fallback_res.stdout.strip()}")
+                    logger.info("Fallback print job succeeded!")
+                else:
+                    logger.error(f"Fallback CUPS Error: {fallback_res.stderr.strip()}")
             
     except Exception as e:
         logger.error(f"Failed to print job: {str(e)}")
