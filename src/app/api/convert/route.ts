@@ -40,10 +40,22 @@ export async function POST(request: Request) {
     const formData = new FormData()
     formData.append('File', fileUrl)
 
-    const convertRes = await fetch(`https://v2.convertapi.com/convert/${extension}/to/pdf?Secret=${convertApiKey}`, {
+    let convertRes = await fetch(`https://v2.convertapi.com/convert/${extension}/to/pdf?Secret=${convertApiKey}`, {
       method: 'POST',
       body: formData
     })
+
+    if (!convertRes.ok) {
+      console.warn(`Primary ConvertAPI failed with status ${convertRes.status}. Falling back to sandbox...`)
+      
+      const sandboxKey = process.env.CONVERT_API_SANDBOX_SECRET
+      if (sandboxKey) {
+        convertRes = await fetch(`https://v2.convertapi.com/convert/${extension}/to/pdf?Secret=${sandboxKey}`, {
+          method: 'POST',
+          body: formData
+        })
+      }
+    }
 
     if (!convertRes.ok) {
       const errText = await convertRes.text()
