@@ -37,12 +37,38 @@ export default function PrintSettings() {
     if (hasConverting) {
       setSubmitting(true)
       const start = Date.now()
-      while (Date.now() - start < 15000) {
+      // Wait up to 30 seconds for conversion to finish
+      while (Date.now() - start < 30000) {
         await new Promise(r => setTimeout(r, 500))
         const currentFiles = usePrintStore.getState().files
         if (!currentFiles.some(f => f.isConverting)) break
       }
       setSubmitting(false)
+    }
+
+    const finalFiles = usePrintStore.getState().files;
+    
+    // Check if any file failed conversion
+    if (finalFiles.some(f => f.conversionError)) {
+      setError("One or more files failed to process. Please go back and remove them.");
+      return;
+    }
+    
+    // Check if it's STILL converting after timeout
+    if (finalFiles.some(f => f.isConverting)) {
+      setError("File conversion is taking too long. Please try again or upload a PDF instead.");
+      return;
+    }
+
+    // Strictly ensure no non-PDF/image files make it to print
+    const unsupported = finalFiles.find(f => {
+      const ext = f.fileName.split('.').pop()?.toLowerCase();
+      return ext !== 'pdf' && ext !== 'jpg' && ext !== 'jpeg' && ext !== 'png' && ext !== 'webp';
+    });
+    
+    if (unsupported) {
+      setError(`File "${unsupported.fileName}" is not supported for direct printing. Please upload a PDF instead.`);
+      return;
     }
 
     sessionStorage.setItem('printSettings', JSON.stringify(settings))

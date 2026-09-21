@@ -32,6 +32,11 @@ export async function POST(request: Request) {
       const fileSides = (bodyFile.layout || bodyFile.sides || body.sides) === 'duplex' ? 'Double' : 'Single'
       const fileOrientation = (bodyFile.orientation || body.orientation) === 'landscape' ? 'Landscape' : 'Portrait'
 
+      const ext = bodyFile.fileName.split('.').pop()?.toLowerCase();
+      if (ext !== 'pdf' && ext !== 'jpg' && ext !== 'jpeg' && ext !== 'png' && ext !== 'webp') {
+        throw new Error(`File ${bodyFile.fileName} is not a supported format. Please upload a PDF or Image.`);
+      }
+
       const existingFile = existingJob.files.find((f: any) => f.filename === bodyFile.fileName)
 
       return {
