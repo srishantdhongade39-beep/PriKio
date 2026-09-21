@@ -576,7 +576,9 @@ export default function FilePreviewModal({ file, onClose, onSave }: FilePreviewM
                 <polyline points="10 9 9 9 8 9"></polyline>
               </svg>
               <div style={{ fontWeight: 600, color: '#0f172a' }}>Preview not available</div>
-              <div style={{ fontSize: '13px', marginTop: '4px', color: '#64748b' }}>{errorMsg || 'Please set the page range manually.'}</div>
+              <div style={{ fontSize: '13px', marginTop: '4px', color: '#64748b' }}>
+                {file.conversionError ? `Conversion Error: ${file.conversionError}` : (errorMsg || 'Please set the page range manually.')}
+              </div>
             </div>
           )}
         </div>

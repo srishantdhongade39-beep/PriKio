@@ -16,17 +16,19 @@ export async function POST(request: Request) {
 
     const supabase = await createClient()
 
-    // 1. Download the raw file from Supabase Storage
-    const { data: fileData, error: downloadError } = await supabase.storage
+    // 1. Generate a signed URL for the original file in Supabase Storage
+    const { data: signedUrlData, error: signedUrlError } = await supabase.storage
       .from('documents')
-      .download(storagePath)
+      .createSignedUrl(storagePath, 3600)
 
-    if (downloadError || !fileData) {
-      console.error('Storage download error:', downloadError)
-      return NextResponse.json({ error: 'Failed to download original file from storage' }, { status: 500 })
+    if (signedUrlError || !signedUrlData?.signedUrl) {
+      console.error('Storage signed URL error:', signedUrlError)
+      return NextResponse.json({ error: 'Failed to get signed URL for original file' }, { status: 500 })
     }
 
-    // 2. Call ConvertAPI
+    const fileUrl = signedUrlData.signedUrl
+
+    // 2. Call ConvertAPI using the URL
     const convertApiKey = process.env.NODE_ENV === 'production' 
       ? process.env.CONVERT_API_SECRET 
       : (process.env.CONVERT_API_SANDBOX_SECRET || process.env.CONVERT_API_SECRET)
@@ -35,18 +37,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'ConvertAPI secret is not configured' }, { status: 500 })
     }
 
-    const uploadFormData = new FormData()
-    uploadFormData.append('File', fileData, fileName)
+    const formData = new FormData()
+    formData.append('File', fileUrl)
 
     const convertRes = await fetch(`https://v2.convertapi.com/convert/${extension}/to/pdf?Secret=${convertApiKey}`, {
       method: 'POST',
-      body: uploadFormData
+      body: formData
     })
 
     if (!convertRes.ok) {
       const errText = await convertRes.text()
       console.error('ConvertAPI Error in async convert:', errText)
-      return NextResponse.json({ error: 'ConvertAPI conversion failed' }, { status: 502 })
+      
+      let errorMessage = 'ConvertAPI conversion failed'
+      try {
+        const parsed = JSON.parse(errText)
+        if (parsed.Message) errorMessage = parsed.Message
+      } catch (e) {
+        // Ignored
+      }
+      return NextResponse.json({ error: errorMessage }, { status: 502 })
     }
 
     const result = await convertRes.json()
@@ -83,7 +93,7 @@ export async function POST(request: Request) {
     }
 
     // 6. Generate signed URL for the converted PDF
-    const { data: signedUrlData } = await supabase.storage
+    const { data: convertedSignedUrlData } = await supabase.storage
       .from('documents')
       .createSignedUrl(convertedStoragePath, 3600)
 
@@ -120,7 +130,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      convertedUrl: signedUrlData?.signedUrl || '',
+      convertedUrl: convertedSignedUrlData?.signedUrl || '',
       convertedFileName,
       storagePath: convertedStoragePath,
       pageCount
