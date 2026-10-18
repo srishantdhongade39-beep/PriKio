@@ -37,28 +37,83 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
 
   useEffect(() => {
-    // Mock user for testing
-    const dummyUser = { id: 'test-user', email: 'test@example.com' } as User
-    const dummyProfile: Profile = {
-      id: 'test-user',
-      full_name: 'Test Student',
-      student_id: 'PU123456',
-      department: 'Computer Science',
-      year: 3,
-      wallet_balance: 500,
-      role: 'student'
+    const fetchSessionAndProfile = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) {
+          setUser(session.user)
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single()
+          
+          if (profileData) {
+            setProfile(profileData as Profile)
+          } else {
+            setProfile({
+              id: session.user.id,
+              full_name: session.user.email?.split('@')[0] || 'Student',
+              student_id: 'PU' + Math.floor(100000 + Math.random() * 900000),
+              department: 'Information Technology',
+              year: 2,
+              wallet_balance: 150,
+              role: 'student'
+            })
+          }
+        } else {
+          setUser(null)
+          setProfile(null)
+        }
+      } catch (err) {
+        console.error('Error fetching session:', err)
+        setUser(null)
+        setProfile(null)
+      } finally {
+        setLoading(false)
+      }
     }
-    
-    setUser(dummyUser)
-    setProfile(dummyProfile)
-    setLoading(false)
+
+    fetchSessionAndProfile()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session) {
+        setUser(session.user)
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single()
+        
+        if (profileData) {
+          setProfile(profileData as Profile)
+        } else {
+          setProfile({
+            id: session.user.id,
+            full_name: session.user.email?.split('@')[0] || 'Student',
+            student_id: 'PU' + Math.floor(100000 + Math.random() * 900000),
+            department: 'Information Technology',
+            year: 2,
+            wallet_balance: 150,
+            role: 'student'
+          })
+        }
+      } else {
+        setUser(null)
+        setProfile(null)
+      }
+      setLoading(false)
+    })
+
+    return () => subscription.unsubscribe()
   }, [supabase])
 
   const signIn = async () => {
-    // Dummy sign in
+    // handled via sign in form
   }
 
   const signOut = async () => {
+    await supabase.auth.signOut()
     setUser(null)
     setProfile(null)
   }

@@ -3,12 +3,40 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import FadeIn from '@/components/animations/FadeIn'
+import { useAuth } from '@/context/AuthContext'
+import { LogOut } from 'lucide-react'
 import './desktop-landing.css'
 
 export default function LandingPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
+
+  const { user, profile, signOut } = useAuth()
+
+  const handleMenuLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
+    e.preventDefault()
+    setMenuOpen(false)
+    const element = document.getElementById(targetId)
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
+
+  const handleProfileClick = () => {
+    if (user) {
+      setProfileOpen(!profileOpen)
+    } else {
+      router.push('/auth/login')
+    }
+  }
+
+  const handleSignOutClick = async () => {
+    setProfileOpen(false)
+    await signOut()
+    router.refresh()
+  }
 
   const handleSignIn = () => {
     setLoading(true)
@@ -29,12 +57,39 @@ export default function LandingPage() {
             </svg>
           </button>
 
-          <button className="account-btn" onClick={() => router.push('/auth/login')}>
+          <button className="account-btn" onClick={handleProfileClick} aria-label="Account Profile">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
               <circle cx="12" cy="7" r="4"></circle>
             </svg>
           </button>
+
+          {profileOpen && user && profile && (
+            <div className="profile-popover-container">
+              <div className="profile-popover-header">
+                <div className="profile-popover-name">{profile.full_name || 'Student'}</div>
+                <div className="profile-popover-role">{profile.role || 'Student Profile'}</div>
+              </div>
+              <div className="profile-popover-details">
+                <div className="profile-detail-row">
+                  <span className="profile-detail-label">Student ID:</span>
+                  <span className="profile-detail-val">{profile.student_id || 'N/A'}</span>
+                </div>
+                <div className="profile-detail-row">
+                  <span className="profile-detail-label">Dept:</span>
+                  <span className="profile-detail-val">{profile.department || 'N/A'}</span>
+                </div>
+              </div>
+              <div className="profile-popover-wallet">
+                <span className="profile-wallet-label">Academic Credits:</span>
+                <span className="profile-wallet-balance">₹{profile.wallet_balance}</span>
+              </div>
+              <button className="profile-signout-btn" onClick={handleSignOutClick}>
+                <LogOut size={16} />
+                <span>Sign Out</span>
+              </button>
+            </div>
+          )}
         </header>
 
         {/* Menu Overlay */}
@@ -50,10 +105,10 @@ export default function LandingPage() {
                 </button>
               </div>
               <div className="menu-links">
-                <a href="#">About Us</a>
-                <a href="#">Features</a>
-                <a href="#">Franchise</a>
-                <a href="#">Contact Us</a>
+                <a href="#about" onClick={(e) => handleMenuLinkClick(e, 'about')}>About Us</a>
+                <a href="#features" onClick={(e) => handleMenuLinkClick(e, 'features')}>Features</a>
+                <a href="#about" onClick={(e) => handleMenuLinkClick(e, 'about')}>Franchise</a>
+                <a href="#contact" onClick={(e) => handleMenuLinkClick(e, 'contact')}>Contact Us</a>
               </div>
             </div>
           </div>
@@ -131,7 +186,7 @@ export default function LandingPage() {
 </section>
 
 
-<section className="capabilities">
+<section id="features" className="capabilities">
   <div className="section-label">Capabilities</div>
 
   <div className="cap-grid">
@@ -183,6 +238,79 @@ export default function LandingPage() {
 </section>
 
 
+<section id="about" className="about-section">
+  <div className="section-label">About Us</div>
+  
+  <div className="about-container reveal">
+    <div className="about-text-content">
+      <h2 className="about-headline">
+        Seamless Printing <span>Built For Campus Life</span>
+      </h2>
+      <p className="about-body">
+        CampusPrint is the official smart-printing network designed to match the speed and flexibility of modern university education. We believe that printing assignments, lab reports, and lecture slides should be completely frictionless.
+      </p>
+      <p className="about-body">
+        By deploying high-speed self-service kiosks strategically across campus hubs, we eliminate the need for long print-shop queues, outdated driver installations, and coin payments. Everything is 100% digital, secure, and ready in seconds.
+      </p>
+      <p className="about-body" style={{ fontStyle: 'italic', marginTop: '10px' }}>
+        <strong>Interested in our Franchise?</strong> We partner with institutions and entrepreneurs to scale modern student printing infrastructure worldwide.
+      </p>
+    </div>
+
+    <div className="about-grid">
+      <div className="about-card">
+        <div className="about-card-title">
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          Lightning Fast
+        </div>
+        <p className="about-card-desc">
+          Scan to connect, upload cloud files, make UPI payment, and grab your print in under 60 seconds.
+        </p>
+      </div>
+
+      <div className="about-card">
+        <div className="about-card-title">
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          </svg>
+          Highly Secure
+        </div>
+        <p className="about-card-desc">
+          Your files are fully encrypted in transit and deleted immediately after printing. OTP-locked collection.
+        </p>
+      </div>
+
+      <div className="about-card">
+        <div className="about-card-title">
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Always Near
+        </div>
+        <p className="about-card-desc">
+          Strategically located near classrooms, engineering blocks, student union, and the main library.
+        </p>
+      </div>
+
+      <div className="about-card">
+        <div className="about-card-title">
+          <svg fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Franchise Opportunities
+        </div>
+        <p className="about-card-desc">
+          Fully automated kiosks. High ROI, zero full-time staff required, and remote cloud management dashboard.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
 <section className="faq-section" style={{ padding: '80px 8vw', background: 'var(--bg)' }}>
   <div className="section-label">FAQ</div>
   
@@ -213,7 +341,7 @@ export default function LandingPage() {
 </section>
 
 
-<footer>
+<footer id="contact">
   <div className="footer-top">
     <div>
       <div className="footer-brand">Presidency University</div>

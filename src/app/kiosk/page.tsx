@@ -270,7 +270,7 @@ export default function Kiosk() {
                             strokeLinecap="round" 
                             strokeDasharray="106.8" 
                             strokeDashoffset={106.8 - (106.8 * fileProgress) / 100}
-                            style={{ transition: 'stroke-dashoffset 0.3s ease, stroke 0.3s' }}
+                            style={{ transition: 'stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.4s ease' }}
                           />
                         </svg>
                         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 700, color: isFileCompleted ? '#31C48D' : 'var(--gd)' }}>
@@ -337,7 +337,7 @@ export default function Kiosk() {
                         <div style={{ position: 'relative', width: '160px', height: '160px' }}>
                           <svg style={{ transform: 'rotate(-90deg)', width: '160px', height: '160px' }} viewBox="0 0 100 100">
                             <circle cx="50" cy="50" r="46" fill="none" stroke="#E5E7EB" strokeWidth="8"></circle>
-                            <circle cx="50" cy="50" r="46" fill="none" stroke="var(--accent)" strokeWidth="8" strokeLinecap="round" strokeDasharray="289" strokeDashoffset={289 - (289 * currentPage) / activeFile.page_count}></circle>
+                            <circle cx="50" cy="50" r="46" fill="none" stroke="var(--accent)" strokeWidth="8" strokeLinecap="round" strokeDasharray="289" strokeDashoffset={289 - (289 * currentPage) / activeFile.page_count} style={{ transition: 'stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1)' }}></circle>
                           </svg>
                           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--serif)', fontSize: '48px', fontWeight: 600, color: 'var(--gd)' }}>
                             {currentPage}<span style={{ fontSize: '24px', color: 'var(--grey)' }}>/{activeFile.page_count}</span>
