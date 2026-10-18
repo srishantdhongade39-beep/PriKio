@@ -40,3 +40,6 @@ next-env.d.ts
 # pi env
 pi/.env
 pi/__pycache__/
+
+# temporary / scratch files
+scratch/

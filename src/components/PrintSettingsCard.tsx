@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import AppHeader from "./AppHeader";
 import { usePrintStore, PrintFile } from "@/store/usePrintStore";
+import { parsePageRangeToSet } from "@/lib/pageRangeUtils";
 import Lenis from "lenis";
 
 // ── pricing ──────────────────────────────────────────────────────────────────
@@ -10,6 +11,10 @@ const PRICE = { bw: 1, color: 3, serviceFee: 2 };
 
 interface PrintSettingsCardProps {
   files?: PrintFile[];
+  printerCapabilities?: {
+    supportsDuplex?: boolean;
+    supportsColor?: boolean;
+  };
   onConfirm?: (settings: any) => void;
   onPreviewClick?: (fileId: string) => void;
   onBack?: () => void;
@@ -17,13 +22,19 @@ interface PrintSettingsCardProps {
 
 export default function PrintSettingsCard({
   files = [],
+  printerCapabilities,
   onConfirm = () => {},
   onPreviewClick = () => {},
   onBack,
 }: PrintSettingsCardProps) {
+  const supportsDuplex = printerCapabilities?.supportsDuplex ?? false;
+  const supportsColor = printerCapabilities?.supportsColor ?? true;
   const storeFiles = usePrintStore((state) => state.files);
   const updateFileSettings = usePrintStore((state) => state.updateFileSettings);
   const applySettingsToAll = usePrintStore((state) => state.applySettingsToAll);
+  const removeFile = usePrintStore((state) => state.removeFile);
+
+  const [appliedNotice, setAppliedNotice] = useState<string | null>(null);
 
   // Active files to use (prefer live store files if available)
   const activeFiles = storeFiles.length > 0 ? storeFiles : files;
@@ -31,6 +42,18 @@ export default function PrintSettingsCard({
   const [selectedFileId, setSelectedFileId] = useState<string>(() => {
     return activeFiles[0]?.id || "";
   });
+
+  // Problem #15: Sync selectedFileId if file list changes or selected file is removed
+  useEffect(() => {
+    if (activeFiles.length === 0) {
+      if (selectedFileId !== "") setSelectedFileId("");
+      return;
+    }
+    const exists = activeFiles.some((f) => f.id === selectedFileId);
+    if (!exists) {
+      setSelectedFileId(activeFiles[0].id);
+    }
+  }, [selectedFileId, activeFiles]);
 
   const scrollWrapperRef = useRef<HTMLDivElement>(null);
   const scrollContentRef = useRef<HTMLDivElement>(null);
@@ -83,39 +106,28 @@ export default function PrintSettingsCard({
 
   const activeFile = activeFiles.find((f) => f.id === selectedFileId) || activeFiles[0] || ({} as PrintFile);
 
-  const activeColorMode   = activeFile?.colorMode || "bw";
-  const activeLayout      = activeFile?.layout || "duplex";
-  const activeOrientation = activeFile?.orientation || "portrait";
-  const activeCopies      = activeFile?.copies || 1;
+  const activeColorMode     = activeFile?.colorMode || "bw";
+  const activeLayout        = activeFile?.layout || "simplex";
+  const activeOrientation   = activeFile?.orientation || "portrait";
+  const activeCopies        = activeFile?.copies || 1;
+  const activePagesPerSheet = activeFile?.pagesPerSheet || 1;
+  const activeRepeatOnSheet = activeFile?.repeatOnSheet || false;
 
   // ── cost calculation helpers ──────────────────────────────────────────────
   const parsePagesToPrint = (pagesStr?: string, totalPages: number = 1) => {
-    if (!pagesStr || pagesStr.toLowerCase().trim() === "all") return totalPages;
-    try {
-      const parts = pagesStr.split(",");
-      let count = 0;
-      for (const part of parts) {
-        if (part.includes("-")) {
-          const [start, end] = part.split("-").map((s) => parseInt(s.trim()));
-          if (!isNaN(start) && !isNaN(end) && end >= start) {
-            count += end - start + 1;
-          }
-        } else {
-          const num = parseInt(part.trim());
-          if (!isNaN(num)) count += 1;
-        }
-      }
-      const finalCount = count > 0 ? count : totalPages;
-      return Math.min(finalCount, totalPages);
-    } catch {
-      return totalPages;
-    }
+    return parsePageRangeToSet(pagesStr || "All", totalPages).size;
   };
 
   const getFileMetrics = (f: PrintFile) => {
     const pages = parsePagesToPrint(f.pagesToPrint, f.pageCount || 1);
-    const pagesPerSheet = f.layout === "simplex" ? 1 : 2;
-    const sheetsPerCopy = Math.ceil(pages / pagesPerSheet);
+    const nUp = f.pagesPerSheet || 1;
+    const isRepeat = (f.repeatOnSheet ?? false) && nUp > 1;
+    const sidesPerSheet = f.layout === "simplex" ? 1 : 2;
+    // Indian Xerox Shop Standard:
+    // If repeat mode is ON (e.g. 4 copies of ID on 1 sheet), 1 page occupies 1 physical side!
+    const sheetsPerCopy = isRepeat
+      ? Math.max(1, Math.ceil(pages / sidesPerSheet))
+      : Math.max(1, Math.ceil(pages / (nUp * sidesPerSheet)));
     const copies = f.copies || 1;
     const totalSheets = sheetsPerCopy * copies;
     const pricePerSheet = f.colorMode === "color" ? PRICE.color : PRICE.bw;
@@ -128,7 +140,7 @@ export default function PrintSettingsCard({
   const printCost      = activeFiles.reduce((acc, f) => acc + getFileMetrics(f).cost, 0);
   const totalCost      = printCost + PRICE.serviceFee;
 
-  const handleUpdateActiveFile = (updates: Partial<Pick<PrintFile, 'colorMode' | 'layout' | 'orientation' | 'copies'>>) => {
+  const handleUpdateActiveFile = (updates: Partial<Pick<PrintFile, 'colorMode' | 'layout' | 'orientation' | 'copies' | 'pagesPerSheet' | 'repeatOnSheet'>>) => {
     if (!activeFile?.id) return;
     updateFileSettings(activeFile.id, updates);
   };
@@ -139,7 +151,25 @@ export default function PrintSettingsCard({
       layout: activeLayout,
       orientation: activeOrientation,
       copies: activeCopies,
+      pagesPerSheet: activePagesPerSheet,
+      repeatOnSheet: activeRepeatOnSheet,
     });
+    setAppliedNotice(`Applied to all ${activeFiles.length} files`);
+    setTimeout(() => setAppliedNotice(null), 2500);
+  };
+
+  const handleRemoveFile = (e: React.MouseEvent, fileId: string) => {
+    e.stopPropagation();
+    removeFile(fileId);
+    const remaining = activeFiles.filter(f => f.id !== fileId);
+    if (remaining.length > 0) {
+      if (selectedFileId === fileId) {
+        setSelectedFileId(remaining[0].id);
+      }
+    } else {
+      if (onBack) onBack();
+      else window.history.back();
+    }
   };
 
   const handleConfirm = useCallback(() => {
@@ -158,8 +188,10 @@ export default function PrintSettingsCard({
       layout: activeLayout,
       orientation: activeOrientation,
       copies: activeCopies,
+      pagesPerSheet: activePagesPerSheet,
+      repeatOnSheet: activeRepeatOnSheet,
     });
-  }, [activeFiles, totalCost, printCost, totalSheets, totalFilePages, activeColorMode, activeLayout, activeOrientation, activeCopies, onConfirm]);
+  }, [activeFiles, totalCost, printCost, totalSheets, totalFilePages, activeColorMode, activeLayout, activeOrientation, activeCopies, activePagesPerSheet, activeRepeatOnSheet, onConfirm]);
 
   return (
     <>
@@ -453,17 +485,24 @@ export default function PrintSettingsCard({
                   <p className="sec-label" style={{ margin: 0 }}>Selected Files</p>
                   <span style={{ fontSize: '0.72rem', fontWeight: 700, background: 'linear-gradient(135deg, #4a5fc1 0%, #3747a6 100%)', color: '#ffffff', padding: '2px 8px', borderRadius: '12px', boxShadow: '0 2px 6px rgba(74, 95, 193, 0.25)' }}>{activeFiles.length}</span>
                 </div>
-                {activeFiles.length > 1 && (
-                  <button 
-                    type="button"
-                    onClick={handleApplyToAll}
-                    className="apply-all-btn"
-                    title="Apply current file's settings to all uploaded files"
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                    <span>Apply to all files</span>
-                  </button>
-                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {appliedNotice && (
+                    <span style={{ fontSize: "0.70rem", fontWeight: 700, color: "#059669", background: "#ecfdf5", border: "1px solid #a7f3d0", padding: "2px 8px", borderRadius: "8px" }}>
+                      ✓ {appliedNotice}
+                    </span>
+                  )}
+                  {activeFiles.length > 1 && (
+                    <button 
+                      type="button"
+                      onClick={handleApplyToAll}
+                      className="apply-all-btn"
+                      title="Apply current file's settings to all uploaded files"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                      <span>Apply to all files</span>
+                    </button>
+                  )}
+                </div>
               </div>
               
               {/* Scrollable file list */}
@@ -507,6 +546,15 @@ export default function PrintSettingsCard({
                             </span>
                           )}
                         </div>
+
+                        {file.conversionError && (
+                          <div style={{ marginBottom: "3px" }}>
+                            <span style={{ fontSize: "0.66rem", fontWeight: 600, color: "#e11d48", background: "#ffe4e6", border: "1px solid #fecdd3", padding: "1px 6px", borderRadius: "4px", display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                              Failed (tap 🗑️ to remove)
+                            </span>
+                          </div>
+                        )}
 
                         {/* Settings Tag Pill */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap', marginTop: '2px' }}>
@@ -581,16 +629,66 @@ export default function PrintSettingsCard({
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                         <span>Pages</span>
                       </button>
+
+                      {/* Remove File Button */}
+                      <button
+                        type="button"
+                        onClick={(e) => handleRemoveFile(e, file.id)}
+                        title="Remove file"
+                        style={{
+                          background: "#fff1f2",
+                          border: "1px solid #fecdd3",
+                          color: "#e11d48",
+                          borderRadius: "8px",
+                          width: "28px",
+                          height: "28px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          flexShrink: 0,
+                          transition: "all 0.15s ease"
+                        }}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6"></polyline>
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                      </button>
                     </div>
                   );
                 })}
               </div>
               
               {activeFiles.length > 1 && (
-                <p style={{ fontSize: "0.72rem", color: "#64748b", margin: "6px 0 0 2px", display: "flex", alignItems: "center", gap: "4px" }}>
-                  <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#4a5fc1", display: "inline-block" }}></span>
-                  Tap any file above to customize its individual print settings below.
-                </p>
+                <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <p style={{ fontSize: "0.72rem", color: "#64748b", margin: 0, display: "flex", alignItems: "center", gap: "4px" }}>
+                    <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#4a5fc1", display: "inline-block" }}></span>
+                    Tap any file above to configure individually, or tap "Apply to all files".
+                  </p>
+                  
+                  {/* Active File Banner */}
+                  <div style={{
+                    background: "#f8fafc",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "10px",
+                    padding: "6px 12px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "8px"
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0 }}>
+                      <span style={{ fontSize: "0.72rem", color: "#64748b", fontWeight: 600 }}>Editing settings for:</span>
+                      <span style={{ fontSize: "0.76rem", color: "#1e293b", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {activeFile.fileName}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: "0.66rem", fontWeight: 700, color: "#4a5fc1", background: "#eef2ff", padding: "1.5px 6px", borderRadius: "4px", flexShrink: 0 }}>
+                      File {activeFiles.findIndex(f => f.id === activeFile.id) + 1} of {activeFiles.length}
+                    </span>
+                  </div>
+                </div>
               )}
             </div>
 
@@ -598,7 +696,15 @@ export default function PrintSettingsCard({
 
             {/* ── Color Mode ── */}
             <div>
-              <p className="sec-label">Color Mode</p>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+                <p className="sec-label" style={{ margin: 0 }}>Color Mode</p>
+                {!supportsColor && (
+                  <span style={{ fontSize: "0.68rem", fontWeight: 600, color: "#475569", background: "#f1f5f9", padding: "2px 8px", borderRadius: "10px", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    Monochrome printer only
+                  </span>
+                )}
+              </div>
               <div style={{ display: "flex", gap: "12px" }}>
 
                 {/* B&W card */}
@@ -625,7 +731,15 @@ export default function PrintSettingsCard({
                 {/* Color card */}
                 <div 
                   className={`cm-card ${activeColorMode === "color" ? "active" : ""}`} 
-                  onClick={() => handleUpdateActiveFile({ colorMode: "color" })}
+                  onClick={() => {
+                    if (supportsColor) handleUpdateActiveFile({ colorMode: "color" });
+                  }}
+                  style={{
+                    opacity: supportsColor ? 1 : 0.45,
+                    cursor: supportsColor ? "pointer" : "not-allowed",
+                    borderStyle: supportsColor ? "solid" : "dashed"
+                  }}
+                  title={supportsColor ? "Color Printing" : "This kiosk printer is monochrome only"}
                 >
                   <div style={{ position: "absolute", top: "12px", right: "12px", width: "18px", height: "18px", borderRadius: "50%", border: `2px solid ${activeColorMode === "color" ? "#4a5fc1" : "#ddd"}`, background: activeColorMode === "color" ? "#4a5fc1" : "white", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     {activeColorMode === "color" && <svg width="10" height="10" viewBox="0 0 10 10"><polyline points="2,5 4,7 8,3" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
@@ -648,7 +762,15 @@ export default function PrintSettingsCard({
 
             {/* ── Layout (Duplex) ── */}
             <div>
-              <p className="sec-label">Duplex</p>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+                <p className="sec-label" style={{ margin: 0 }}>Duplex</p>
+                {!supportsDuplex && (
+                  <span style={{ fontSize: "0.68rem", fontWeight: 600, color: "#d97706", background: "#fef3c7", padding: "2px 8px", borderRadius: "10px", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    Single-sided only (No duplex hardware)
+                  </span>
+                )}
+              </div>
               <div className="pill-toggle">
                 <button 
                   type="button"
@@ -660,8 +782,17 @@ export default function PrintSettingsCard({
                 </button>
                 <button 
                   type="button"
+                  disabled={!supportsDuplex}
                   className={`pill-btn ${activeLayout === "duplex" ? "active" : ""}`} 
-                  onClick={() => handleUpdateActiveFile({ layout: "duplex" })}
+                  onClick={() => {
+                    if (supportsDuplex) handleUpdateActiveFile({ layout: "duplex" });
+                  }}
+                  style={{
+                    opacity: supportsDuplex ? 1 : 0.45,
+                    cursor: supportsDuplex ? "pointer" : "not-allowed",
+                    borderStyle: supportsDuplex ? "solid" : "dashed"
+                  }}
+                  title={supportsDuplex ? "Double-sided" : "This printer model does not support automatic double-sided printing"}
                 >
                   <span>Double-sided</span>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="2" y="3" width="14" height="18" rx="2"/><rect x="8" y="5" width="14" height="18" rx="2" opacity="0.4"/></svg>
@@ -690,6 +821,192 @@ export default function PrintSettingsCard({
                   <svg width="18" height="16" viewBox="0 0 20 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="1" y="1" width="18" height="14" rx="2"/></svg>
                 </button>
               </div>
+            </div>
+
+            {/* ── Pages per Sheet (N-Up / Grid) ── */}
+            <div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                <p className="sec-label" style={{ margin: 0 }}>Pages per Sheet</p>
+                {activePagesPerSheet > 1 && (
+                  <span style={{ fontSize: "0.68rem", fontWeight: 700, color: "#4f46e5", background: "#eef2ff", padding: "2px 8px", borderRadius: "10px" }}>
+                    {activePagesPerSheet === 4 ? "Slides (2×2)" : activePagesPerSheet === 9 ? "Micro-Xerox (3×3)" : "2 Pages"} • Saves paper
+                  </span>
+                )}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px" }}>
+                {[
+                  { val: 1, label: "1-up", sub: "Standard" },
+                  { val: 2, label: "2-up", sub: "2 pgs" },
+                  { val: 4, label: "4-up", sub: "Slides" },
+                  { val: 9, label: "9-up", sub: "Micro" }
+                ].map((item) => {
+                  const isActive = activePagesPerSheet === item.val;
+                  return (
+                    <button
+                      key={item.val}
+                      type="button"
+                      onClick={() => handleUpdateActiveFile({ pagesPerSheet: item.val as any })}
+                      style={{
+                        padding: "10px 4px",
+                        borderRadius: "14px",
+                        border: isActive ? "2px solid #4a5fc1" : "1.5px solid #e8eaef",
+                        background: isActive ? "#f5f6ff" : "#ffffff",
+                        boxShadow: isActive ? "0 0 0 3px rgba(74,95,193,0.12)" : "none",
+                        cursor: "pointer",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: "2px",
+                        transition: "all 0.15s ease",
+                        fontFamily: "inherit"
+                      }}
+                    >
+                      <span style={{ fontSize: "0.88rem", fontWeight: 700, color: isActive ? "#1a2340" : "#475569" }}>
+                        {item.label}
+                      </span>
+                      <span style={{ fontSize: "0.68rem", fontWeight: 600, color: isActive ? "#4a5fc1" : "#94a3b8" }}>
+                        {item.sub}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* ── Repeat / Sequential Mode & Visualizer (Shown when > 1-up) ── */}
+              {activePagesPerSheet > 1 && (
+                <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {/* Mode Toggle */}
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateActiveFile({ repeatOnSheet: false })}
+                      style={{
+                        flex: 1,
+                        padding: "8px 10px",
+                        borderRadius: "10px",
+                        border: !activeRepeatOnSheet ? "2px solid #4a5fc1" : "1px solid #e2e8f0",
+                        background: !activeRepeatOnSheet ? "#f5f6ff" : "#ffffff",
+                        color: !activeRepeatOnSheet ? "#1a2340" : "#64748b",
+                        fontWeight: !activeRepeatOnSheet ? 700 : 500,
+                        fontSize: "0.76rem",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "6px",
+                        transition: "all 0.15s ease"
+                      }}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      <span>Sequential (Notes/Slides)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateActiveFile({ repeatOnSheet: true })}
+                      style={{
+                        flex: 1,
+                        padding: "8px 10px",
+                        borderRadius: "10px",
+                        border: activeRepeatOnSheet ? "2px solid #4a5fc1" : "1px solid #e2e8f0",
+                        background: activeRepeatOnSheet ? "#f5f6ff" : "#ffffff",
+                        color: activeRepeatOnSheet ? "#1a2340" : "#64748b",
+                        fontWeight: activeRepeatOnSheet ? 700 : 500,
+                        fontSize: "0.76rem",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "6px",
+                        transition: "all 0.15s ease"
+                      }}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="m17 1 4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="m7 23-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                      <span>Repeat Same Page (ID/Cards)</span>
+                    </button>
+                  </div>
+
+                  {/* Interactive A4 Sheet Visualizer Card */}
+                  <div style={{
+                    padding: "12px",
+                    background: "#f8fafc",
+                    borderRadius: "14px",
+                    border: "1px solid #e2e8f0",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "10px"
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                      <span style={{ fontSize: "0.70rem", fontWeight: 700, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                        Physical A4 Sheet Layout
+                      </span>
+                      <span style={{ fontSize: "0.68rem", fontWeight: 700, color: activeRepeatOnSheet ? "#d97706" : "#4a5fc1", background: activeRepeatOnSheet ? "#fef3c7" : "#eef2ff", padding: "1px 7px", borderRadius: "10px" }}>
+                        {activeRepeatOnSheet ? "🔁 Repeat Mode" : "📄 Sequential Mode"}
+                      </span>
+                    </div>
+
+                    {/* The A4 Paper Canvas */}
+                    <div style={{
+                      width: "126px",
+                      height: "178px", // Standard A4 210:297 aspect ratio
+                      background: "#ffffff",
+                      borderRadius: "6px",
+                      border: "1.5px solid #cbd5e1",
+                      boxShadow: "0 4px 12px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.05)",
+                      padding: "5px",
+                      display: "grid",
+                      gap: "3px",
+                      gridTemplateColumns: activePagesPerSheet === 2 ? "1fr 1fr" : activePagesPerSheet === 4 ? "1fr 1fr" : "repeat(3, 1fr)",
+                      gridTemplateRows: activePagesPerSheet === 2 ? "1fr" : activePagesPerSheet === 4 ? "1fr 1fr" : "repeat(3, 1fr)",
+                      boxSizing: "border-box"
+                    }}>
+                      {Array.from({ length: activePagesPerSheet }).map((_, i) => {
+                        const pageNum = activeRepeatOnSheet ? 1 : (i + 1);
+                        return (
+                          <div
+                            key={i}
+                            style={{
+                              background: activeRepeatOnSheet ? "#fffbeb" : "#f1f5f9",
+                              border: activeRepeatOnSheet ? "1px dashed #f59e0b" : "1px dashed #94a3b8",
+                              borderRadius: "4px",
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              padding: "2px",
+                              overflow: "hidden"
+                            }}
+                          >
+                            <span style={{ 
+                              fontSize: activePagesPerSheet === 9 ? "0.55rem" : activePagesPerSheet === 4 ? "0.68rem" : "0.78rem", 
+                              fontWeight: 700, 
+                              color: activeRepeatOnSheet ? "#b45309" : "#1e293b" 
+                            }}>
+                              P.{pageNum}
+                            </span>
+                            {activePagesPerSheet <= 4 && (
+                              <div style={{ width: "65%", display: "flex", flexDirection: "column", gap: "2px", marginTop: "3px", opacity: 0.35 }}>
+                                <div style={{ height: "1.5px", background: activeRepeatOnSheet ? "#b45309" : "#475569", borderRadius: "1px" }}></div>
+                                <div style={{ height: "1.5px", background: activeRepeatOnSheet ? "#b45309" : "#475569", borderRadius: "1px", width: "80%" }}></div>
+                                <div style={{ height: "1.5px", background: activeRepeatOnSheet ? "#b45309" : "#475569", borderRadius: "1px", width: "60%" }}></div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Dynamic info caption */}
+                    <p style={{ margin: 0, fontSize: "0.72rem", color: "#64748b", textAlign: "center", lineHeight: 1.4 }}>
+                      {activeRepeatOnSheet ? (
+                        <>Prints <strong>{activePagesPerSheet} identical copies</strong> of Page 1 on 1 sheet.<br/><span style={{ color: "#059669", fontWeight: 600 }}>Standard Xerox rate: 1 sheet charged (₹{activeFile.colorMode === "color" ? PRICE.color : PRICE.bw})</span></>
+                      ) : (
+                        <>Prints <strong>Pages 1 to {Math.min(activePagesPerSheet, activeFile.pageCount || activePagesPerSheet)}</strong> on Sheet 1.<br/><span style={{ color: "#4f46e5", fontWeight: 600 }}>Saves up to {activePagesPerSheet === 9 ? "88%" : activePagesPerSheet === 4 ? "75%" : "50%"} paper</span></>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* ── Number of Copies ── */}
@@ -728,6 +1045,9 @@ export default function PrintSettingsCard({
               <span>Confirm & Pay</span>
               <span className="confirm-badge">₹ {printCost.toFixed(2)}</span>
             </button>
+            <p style={{ margin: "6px 0 0", textAlign: "center", fontSize: "0.72rem", color: "#64748b" }}>
+              + ₹{PRICE.serviceFee} kiosk platform fee added at checkout
+            </p>
           </div>
         </div>
       </div>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import AppHeader from "./AppHeader";
 import SmoothScrollBox from "./SmoothScrollBox";
 import { PrintFile } from "@/store/usePrintStore";
+import { parsePageRangeToSet } from "@/lib/pageRangeUtils";
 
 export interface OrderReviewProps {
   files?: Array<PrintFile & { cost?: number; sheets?: number; sheetsPerCopy?: number }>;
@@ -24,7 +25,7 @@ export default function OrderReview({
   files = [],
   copies = 1,
   colorMode = "bw",
-  layout = "duplex",
+  layout = "simplex",
   orientation = "portrait",
   printCost: defaultPrintCost,
   serviceFee = 2,
@@ -33,39 +34,24 @@ export default function OrderReview({
   onProceed = () => {},
 }: OrderReviewProps) {
   const parsePagesToPrint = (pagesStr?: string, totalPages: number = 1) => {
-    if (!pagesStr || pagesStr.toLowerCase().trim() === 'all') return totalPages;
-    try {
-      const parts = pagesStr.split(',');
-      let count = 0;
-      for (const part of parts) {
-        if (part.includes('-')) {
-          const [start, end] = part.split('-').map(s => parseInt(s.trim()));
-          if (!isNaN(start) && !isNaN(end) && end >= start) {
-            count += (end - start + 1);
-          }
-        } else {
-          const num = parseInt(part.trim());
-          if (!isNaN(num)) count += 1;
-        }
-      }
-      const finalCount = count > 0 ? count : totalPages;
-      return Math.min(finalCount, totalPages);
-    } catch {
-      return totalPages;
-    }
+    return parsePageRangeToSet(pagesStr || "All", totalPages).size;
   };
 
   const getFileMetrics = (f: PrintFile) => {
     const pages = parsePagesToPrint(f.pagesToPrint, f.pageCount || 1);
-    const fileLayout = f.layout || layout || 'duplex';
-    const pagesPerSheet = fileLayout === 'simplex' ? 1 : 2;
-    const sheetsPerCopy = Math.ceil(pages / pagesPerSheet);
+    const fileLayout = f.layout || layout || 'simplex';
+    const nUp = f.pagesPerSheet || 1;
+    const isRepeat = (f.repeatOnSheet ?? false) && nUp > 1;
+    const sidesPerSheet = fileLayout === 'simplex' ? 1 : 2;
+    const sheetsPerCopy = isRepeat
+      ? Math.max(1, Math.ceil(pages / sidesPerSheet))
+      : Math.max(1, Math.ceil(pages / (nUp * sidesPerSheet)));
     const fileCopies = f.copies || copies || 1;
     const totalSheets = sheetsPerCopy * fileCopies;
     const fileColorMode = f.colorMode || colorMode || 'bw';
     const pricePerSheet = fileColorMode === 'color' ? PRICE.color : PRICE.bw;
     const cost = totalSheets * pricePerSheet;
-    return { pages, sheetsPerCopy, totalSheets, pricePerSheet, cost, fileColorMode, fileLayout, fileCopies };
+    return { pages, sheetsPerCopy, totalSheets, pricePerSheet, cost, fileColorMode, fileLayout, fileCopies, nUp, isRepeat };
   };
 
   const totalFilePages = files.reduce((acc, f) => acc + getFileMetrics(f).pages, 0);
@@ -382,6 +368,20 @@ export default function OrderReview({
                           <span style={{ background: '#f1f5f9', color: '#475569', padding: '1px 5px', borderRadius: '4px', fontWeight: 600, fontSize: '0.70rem' }}>
                             {metrics.fileLayout === 'duplex' ? 'Double' : 'Single'}
                           </span>
+
+                          {metrics.nUp > 1 && (
+                            <span style={{ 
+                              background: metrics.isRepeat ? '#fef3c7' : '#f5f3ff', 
+                              color: metrics.isRepeat ? '#b45309' : '#7c3aed', 
+                              border: metrics.isRepeat ? '1px solid #fde68a' : '1px solid #ddd6fe', 
+                              padding: '1px 5px', 
+                              borderRadius: '4px', 
+                              fontWeight: 600, 
+                              fontSize: '0.70rem' 
+                            }}>
+                              {metrics.nUp}-up{metrics.isRepeat ? ' (Repeat)' : ''}
+                            </span>
+                          )}
 
                           {metrics.fileCopies > 1 && (
                             <span style={{ background: '#eef2ff', color: '#4a5fc1', padding: '1px 5px', borderRadius: '4px', fontWeight: 600, fontSize: '0.70rem' }}>

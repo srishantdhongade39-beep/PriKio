@@ -64,9 +64,9 @@ export default function UploadScreen() {
         if (ext === '.pdf') {
           pageCount = await getPdfPageCount(f)
         } else if (['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
-          const converted = await convertImageToPdfBlob(f)
-          activeBlob = converted.blob
-          activeFileName = converted.fileName
+          // Keep native image file format so Pillow on the kiosk has full pixel-level control
+          activeBlob = f
+          activeFileName = f.name
           pageCount = 1
         }
 
@@ -184,7 +184,7 @@ export default function UploadScreen() {
           pageCount: serverFile.page_count || originalItem.pageCount || 1,
           pagesToPrint: originalItem.pagesToPrint || 'All',
           colorMode: 'bw',
-          layout: 'duplex',
+          layout: 'simplex',
           orientation: 'portrait',
           copies: 1,
           url: serverFile.url,

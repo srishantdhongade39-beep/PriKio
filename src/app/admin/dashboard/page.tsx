@@ -15,18 +15,18 @@ export default async function AdminDashboard() {
 
   const { data: jobs } = await supabase
     .from('print_jobs')
-    .select('kiosk_id, total_amount')
-    .eq('payment_status', 'paid')
+    .select('kiosk_id, total_amount_paise')
+    .in('status', ['paid', 'printing', 'completed'])
     .gte('created_at', startOfDay.toISOString())
 
   const totalPrints = jobs?.length || 0
-  const totalEarnings = jobs?.reduce((sum, job) => sum + (Number(job.total_amount) || 0), 0) || 0
+  const totalEarnings = jobs?.reduce((sum, job) => sum + ((Number(job.total_amount_paise) || 0) / 100), 0) || 0
 
   const revenuePerKiosk: Record<string, number> = {}
   jobs?.forEach(job => {
     const kId = job.kiosk_id || 'Unknown'
     if (!revenuePerKiosk[kId]) revenuePerKiosk[kId] = 0
-    revenuePerKiosk[kId] += Number(job.total_amount) || 0
+    revenuePerKiosk[kId] += (Number(job.total_amount_paise) || 0) / 100
   })
 
   // 3. Unread Notifications

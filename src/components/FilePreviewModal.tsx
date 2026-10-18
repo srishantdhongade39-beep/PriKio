@@ -266,9 +266,15 @@ export default function FilePreviewModal({ file, onClose, onSave }: FilePreviewM
     let url: string | null = null
     const isPdf = typeof file.fileName === 'string' && file.fileName.toLowerCase().endsWith('.pdf')
     
-    if (file.originalFile && !isPdf) {
-      url = URL.createObjectURL(file.originalFile)
-      setObjectUrl(url)
+    if (file.originalFile && file.originalFile instanceof Blob && !isPdf) {
+      try {
+        url = URL.createObjectURL(file.originalFile)
+        setObjectUrl(url)
+      } catch {
+        if (file.url) setObjectUrl(file.url)
+      }
+    } else if (!isPdf && file.url) {
+      setObjectUrl(file.url)
     }
 
     if (file.isConverting) {
@@ -279,7 +285,7 @@ export default function FilePreviewModal({ file, onClose, onSave }: FilePreviewM
     if (isPdf) {
       setIsFetchingPdf(true)
       try {
-        if (file.originalFile && file.originalFile.type === 'application/pdf') {
+        if (file.originalFile && file.originalFile instanceof Blob && (file.originalFile.type === 'application/pdf' || file.fileName?.toLowerCase().endsWith('.pdf'))) {
           file.originalFile.arrayBuffer().then(buffer => {
             pdfjsLib.getDocument({ 
               data: buffer,
@@ -562,9 +568,14 @@ export default function FilePreviewModal({ file, onClose, onSave }: FilePreviewM
               <div style={{ fontSize: '13px', marginTop: '4px', color: '#64748b' }}>Rendering pages for page selection</div>
               <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
             </div>
-          ) : isImage && objectUrl ? (
+          ) : isImage && (objectUrl || file.url) ? (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', minHeight: '300px', padding: '20px' }}>
-              <img src={objectUrl} alt="Preview" style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', borderRadius: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.08)' }} />
+              <img 
+                src={objectUrl || file.url} 
+                alt={file.fileName || "Preview"} 
+                style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', borderRadius: '12px', boxShadow: '0 8px 24px rgba(0,0,0,0.08)' }} 
+                onError={() => setErrorMsg("Could not load image preview. The file link may have expired.")}
+              />
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', minHeight: '300px', color: '#64748b' }}>

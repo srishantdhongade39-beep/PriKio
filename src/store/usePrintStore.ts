@@ -15,6 +15,8 @@ export interface PrintFile {
   layout?: 'simplex' | 'duplex';
   orientation?: 'portrait' | 'landscape';
   copies?: number;
+  pagesPerSheet?: 1 | 2 | 4 | 9;
+  repeatOnSheet?: boolean;
   originalFile?: File | Blob;
   job_id?: string;
   otp?: string;
@@ -33,8 +35,9 @@ interface PrintState {
   setHasHydrated: (hydrated: boolean) => void;
   setFiles: (files: PrintFile[]) => void;
   updateFile: (id: string, updates: Partial<PrintFile>) => void;
-  updateFileSettings: (id: string, settings: Partial<Pick<PrintFile, 'colorMode' | 'layout' | 'orientation' | 'copies' | 'pagesToPrint'>>) => void;
-  applySettingsToAll: (settings: Partial<Pick<PrintFile, 'colorMode' | 'layout' | 'orientation' | 'copies'>>) => void;
+  removeFile: (id: string) => void;
+  updateFileSettings: (id: string, settings: Partial<Pick<PrintFile, 'colorMode' | 'layout' | 'orientation' | 'copies' | 'pagesToPrint' | 'pagesPerSheet' | 'repeatOnSheet'>>) => void;
+  applySettingsToAll: (settings: Partial<Pick<PrintFile, 'colorMode' | 'layout' | 'orientation' | 'copies' | 'pagesPerSheet' | 'repeatOnSheet'>>) => void;
   setJobData: (jobId: string, otp: string) => void;
   setPrintSettings: (settings: any) => void;
   updatePageRange: (id: string, range: string) => void;
@@ -58,13 +61,19 @@ export const usePrintStore = create<PrintState>()(
           layout: 'simplex',
           orientation: 'portrait',
           copies: 1,
-          pagesToPrint: 'All',
-          ...f
+          pagesPerSheet: 1,
+          repeatOnSheet: false,
+          ...f,
+          pagesToPrint: f.pagesToPrint || 'All'
         })), 
         lastUpdated: Date.now() 
       }),
       updateFile: (id, updates) => set((state) => ({
         files: state.files.map(f => f.id === id ? { ...f, ...updates } : f),
+        lastUpdated: Date.now()
+      })),
+      removeFile: (id) => set((state) => ({
+        files: state.files.filter(f => f.id !== id),
         lastUpdated: Date.now()
       })),
       updateFileSettings: (id, settings) => set((state) => ({

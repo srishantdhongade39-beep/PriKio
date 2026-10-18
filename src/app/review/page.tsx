@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import { usePrintStore, useHydratedPrintStore } from '@/store/usePrintStore'
+import { parsePageRangeToSet } from '@/lib/pageRangeUtils'
 import OrderReview from '@/components/OrderReview'
 
 export default function ReviewPage() {
@@ -52,21 +53,38 @@ export default function ReviewPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           jobId: globalJobId,
-          files: files.map(f => ({
-            id: f.id,
-            fileName: f.fileName,
-            storage_path: f.storagePath || `${globalJobId}/${f.fileName.replace(/[^a-zA-Z0-9.\-_]/g, '_')}`,
-            fileUrl: f.url,
-            fileSizeMb: parseFloat(f.fileSizeMb),
-            pageCount: f.pageCount,
-            pageRange: f.pagesToPrint || 'All',
-            colorMode: f.colorMode || settings.colorMode || 'bw',
-            layout: f.layout || settings.layout || 'duplex',
-            orientation: f.orientation || settings.orientation || 'portrait',
-            copies: f.copies || settings.copies || 1,
-          })),
+          files: files.map(f => {
+            const pages = parsePageRangeToSet(f.pagesToPrint || 'All', f.pageCount || 1).size
+            const nUp = f.pagesPerSheet || settings.pagesPerSheet || 1
+            const isRepeat = (f.repeatOnSheet ?? settings.repeatOnSheet ?? false) && nUp > 1
+            const sidesPerSheet = (f.layout || settings.layout || 'simplex') === 'simplex' ? 1 : 2
+            const sheetsPerCopy = isRepeat
+              ? Math.max(1, Math.ceil(pages / sidesPerSheet))
+              : Math.max(1, Math.ceil(pages / (nUp * sidesPerSheet)))
+            const copies = f.copies || settings.copies || 1
+            const totalSheets = sheetsPerCopy * copies
+            const price = (f.colorMode || settings.colorMode) === 'color' ? 3 : 1
+            const cost = totalSheets * price
+
+            return {
+              id: f.id,
+              fileName: f.fileName,
+              storage_path: f.storagePath || `${globalJobId}/${f.fileName.replace(/[^a-zA-Z0-9.\-_]/g, '_')}`,
+              fileUrl: f.url,
+              fileSizeMb: parseFloat(f.fileSizeMb),
+              pageCount: f.pageCount,
+              pageRange: f.pagesToPrint || 'All',
+              colorMode: f.colorMode || settings.colorMode || 'bw',
+              layout: f.layout || settings.layout || 'simplex',
+              orientation: f.orientation || settings.orientation || 'portrait',
+              copies,
+              pages_per_sheet: nUp,
+              repeat_on_sheet: isRepeat,
+              cost,
+            }
+          }),
           colorMode: settings.colorMode,
-          sides: settings.layout,
+          sides: settings.layout || 'simplex',
           orientation: settings.orientation,
           copies: settings.copies,
           sheetCount: settings.sheetCount,

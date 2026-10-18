@@ -1,6 +1,73 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
+async function convertWithILovePdf(fileUrl: string, fileName: string, extension: string): Promise<ArrayBuffer | null> {
+  const publicKey = process.env.ILOVEPDF_PUBLIC_KEY
+  if (!publicKey) return null
+
+  try {
+    // 1. Authenticate with ILovePDF
+    const authRes = await fetch('https://api.ilovepdf.com/v1/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ public_key: publicKey })
+    })
+    if (!authRes.ok) throw new Error(`ILovePDF Auth failed with status ${authRes.status}`)
+    const { token } = await authRes.json()
+
+    // 2. Start officepdf task
+    const startRes = await fetch('https://api.ilovepdf.com/v1/start/officepdf', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    if (!startRes.ok) throw new Error(`ILovePDF Start task failed: ${startRes.status}`)
+    const { server, task } = await startRes.json()
+
+    // 3. Upload file (fetch blob first to avoid cloud_file remote fetching issues)
+    const fileRes = await fetch(fileUrl)
+    if (!fileRes.ok) throw new Error(`Failed to fetch original file: ${fileRes.status}`)
+    const fileBlob = await fileRes.blob()
+
+    const uploadForm = new FormData()
+    uploadForm.append('task', task)
+    uploadForm.append('file', fileBlob, fileName)
+
+    const uploadRes = await fetch(`https://${server}/v1/upload`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: uploadForm
+    })
+    if (!uploadRes.ok) throw new Error(`ILovePDF Upload failed: ${uploadRes.status}`)
+    const { server_filename } = await uploadRes.json()
+
+    // 4. Process task
+    const processRes = await fetch(`https://${server}/v1/process`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        task,
+        tool: 'officepdf',
+        files: [{ server_filename, filename: fileName }]
+      })
+    })
+    if (!processRes.ok) throw new Error(`ILovePDF Process failed: ${processRes.status}`)
+
+    // 5. Download converted PDF
+    const downloadRes = await fetch(`https://${server}/v1/download/${task}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    if (!downloadRes.ok) throw new Error(`ILovePDF Download failed: ${downloadRes.status}`)
+
+    const buffer = await downloadRes.arrayBuffer()
+    return buffer
+  } catch (err) {
+    console.warn('ILovePDF conversion attempt error:', err)
+    return null
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const { jobId, storagePath, fileName, fileId } = await request.json()
@@ -27,54 +94,49 @@ export async function POST(request: Request) {
     }
 
     const fileUrl = signedUrlData.signedUrl
+    let pdfArrayBuffer: ArrayBuffer | null = null
 
-    // 2. Call ConvertAPI using the URL
-    const convertApiKey = process.env.NODE_ENV === 'production' 
-      ? process.env.CONVERT_API_SECRET 
-      : (process.env.CONVERT_API_SANDBOX_SECRET || process.env.CONVERT_API_SECRET)
-        
-    if (!convertApiKey) {
-      return NextResponse.json({ error: 'ConvertAPI secret is not configured' }, { status: 500 })
-    }
+    // 2a. Try ILovePDF API first if configured
+    pdfArrayBuffer = await convertWithILovePdf(fileUrl, fileName, extension)
 
-    const formData = new FormData()
-    formData.append('File', fileUrl)
+    // 2b. If ILovePDF not configured or failed, try ConvertAPI fallback
+    if (!pdfArrayBuffer) {
+      const convertApiKey = process.env.NODE_ENV === 'production' 
+        ? process.env.CONVERT_API_SECRET 
+        : (process.env.CONVERT_API_SANDBOX_SECRET || process.env.CONVERT_API_SECRET)
+          
+      if (convertApiKey) {
+        const formData = new FormData()
+        formData.append('File', fileUrl)
 
-    let convertRes = await fetch(`https://v2.convertapi.com/convert/${extension}/to/pdf?Secret=${convertApiKey}`, {
-      method: 'POST',
-      body: formData
-    })
-
-    if (!convertRes.ok) {
-      console.warn(`Primary ConvertAPI failed with status ${convertRes.status}. Falling back to sandbox...`)
-      
-      const sandboxKey = process.env.CONVERT_API_SANDBOX_SECRET
-      if (sandboxKey) {
-        convertRes = await fetch(`https://v2.convertapi.com/convert/${extension}/to/pdf?Secret=${sandboxKey}`, {
+        let convertRes = await fetch(`https://v2.convertapi.com/convert/${extension}/to/pdf?Secret=${convertApiKey}`, {
           method: 'POST',
           body: formData
         })
+
+        if (!convertRes.ok && convertRes.status === 503) {
+          console.warn('ConvertAPI rate limit (503) reached. Retrying after delay...')
+          await new Promise(resolve => setTimeout(resolve, 2000))
+          convertRes = await fetch(`https://v2.convertapi.com/convert/${extension}/to/pdf?Secret=${convertApiKey}`, {
+            method: 'POST',
+            body: formData
+          })
+        }
+
+        if (convertRes.ok) {
+          const result = await convertRes.json()
+          const base64Data = result.Files[0].FileData
+          const nodeBuf = Buffer.from(base64Data, 'base64')
+          pdfArrayBuffer = nodeBuf.buffer.slice(nodeBuf.byteOffset, nodeBuf.byteOffset + nodeBuf.byteLength)
+        }
       }
     }
 
-    if (!convertRes.ok) {
-      const errText = await convertRes.text()
-      console.error('ConvertAPI Error in async convert:', errText)
-      
-      let errorMessage = 'ConvertAPI conversion failed'
-      try {
-        const parsed = JSON.parse(errText)
-        if (parsed.Message) errorMessage = parsed.Message
-      } catch (e) {
-        // Ignored
-      }
-      return NextResponse.json({ error: errorMessage }, { status: 502 })
+    if (!pdfArrayBuffer) {
+      return NextResponse.json({ 
+        error: 'Document conversion service is currently unavailable. Please save your document as a PDF on your device and upload the PDF directly.' 
+      }, { status: 502 })
     }
-
-    const result = await convertRes.json()
-    const base64Data = result.Files[0].FileData
-    const nodeBuf = Buffer.from(base64Data, 'base64')
-    const pdfArrayBuffer = nodeBuf.buffer.slice(nodeBuf.byteOffset, nodeBuf.byteOffset + nodeBuf.byteLength)
 
     // 3. Determine new converted PDF filename and storage path
     const baseName = fileName.substring(0, fileName.lastIndexOf('.')) || fileName

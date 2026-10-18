@@ -74,6 +74,9 @@ export async function POST(request: Request) {
             color_mode: 'B&W',
             paper_size: 'A4',
             sides: 'Single',
+            orientation: 'Portrait',
+            pages_per_sheet: 1,
+            repeat_on_sheet: false,
             subtotal_paise: 200,
             page_count: file.pageCount || 1,
             url: signedUrlData?.signedUrl || '',
@@ -170,13 +173,22 @@ export async function POST(request: Request) {
         });
 
         if (!response.ok) {
-          console.warn(`Primary ConvertAPI failed with status ${response.status}. Falling back to sandbox...`);
-          const sandboxKey = process.env.CONVERT_API_SANDBOX_SECRET;
-          if (sandboxKey) {
-            response = await fetch(`https://v2.convertapi.com/convert/${extension}/to/pdf?Secret=${sandboxKey}`, {
+          if (response.status === 503) {
+            console.warn('ConvertAPI rate limit (503) reached. Retrying after delay...');
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            response = await fetch(`https://v2.convertapi.com/convert/${extension}/to/pdf?Secret=${convertApiKey}`, {
               method: 'POST',
               body: uploadFormData
             });
+          } else {
+            const sandboxKey = process.env.CONVERT_API_SANDBOX_SECRET;
+            if (sandboxKey && sandboxKey !== convertApiKey) {
+              console.warn(`Primary ConvertAPI failed with status ${response.status}. Falling back to sandbox...`);
+              response = await fetch(`https://v2.convertapi.com/convert/${extension}/to/pdf?Secret=${sandboxKey}`, {
+                method: 'POST',
+                body: uploadFormData
+              });
+            }
           }
         }
   
@@ -231,6 +243,9 @@ export async function POST(request: Request) {
         color_mode: 'B&W',
         paper_size: 'A4',
         sides: 'Single',
+        orientation: 'Portrait',
+        pages_per_sheet: 1,
+        repeat_on_sheet: false,
         subtotal_paise: 200,
         page_count: pageCount,
         url: signedUrlData?.signedUrl || ''
