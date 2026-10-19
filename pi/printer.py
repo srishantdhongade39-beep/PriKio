@@ -9,7 +9,17 @@ import platform
 
 logger = logging.getLogger(__name__)
 
-_CAPS_CACHE = {}
+_CAPS_CACHE = {
+    "L3250-Series": {
+        "printer_name": "L3250-Series",
+        "supports_duplex": False,
+        "duplex_flag": None,
+        "supports_color": True,
+        "color_flag_color": ["-o", "Ink=COLOR", "-o", "print-color-mode=color"],
+        "color_flag_mono": ["-o", "Ink=MONO", "-o", "ColorModel=Gray", "-o", "print-color-mode=monochrome"],
+        "supports_a4": True,
+    }
+}
 
 def tile_image_on_a4(img, pages_per_sheet, is_grayscale=False):
     """
@@ -116,7 +126,7 @@ def get_printer_capabilities(printer_name=None):
 
     if sys.platform != "win32":
         try:
-            res = subprocess.run(["lpoptions", "-p", printer_name, "-l"], capture_output=True, text=True)
+            res = subprocess.run(["lpoptions", "-p", printer_name, "-l"], capture_output=True, text=True, timeout=3)
             if res.returncode == 0:
                 output = res.stdout
                 output_lower = output.lower()
