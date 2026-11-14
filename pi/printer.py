@@ -116,7 +116,7 @@ def get_printer_capabilities(printer_name=None):
 
     if sys.platform != "win32":
         try:
-            res = subprocess.run(["lpoptions", "-p", printer_name, "-l"], capture_output=True, text=True)
+            res = subprocess.run(["lpoptions", "-p", printer_name, "-l"], capture_output=True, text=True, timeout=10)
             if res.returncode == 0:
                 output = res.stdout
                 output_lower = output.lower()
@@ -466,9 +466,19 @@ def print_job(job_id, file_info, supabase_client):
             logger.info("✅ Mock print successfully spooled (Windows development environment).")
             return True
         else:
+            # Pre-check printer connection before spooling to avoid stale backlogs in CUPS
+            try:
+                stat_check = subprocess.run(["lpstat", "-p", printer_name], capture_output=True, text=True, timeout=5)
+                stat_out = stat_check.stdout.lower()
+                if stat_check.returncode != 0 or "waiting for printer to become available" in stat_out or "not connected" in stat_out:
+                    logger.error(f"Printer '{printer_name}' is not connected or waiting for device. Refusing to spool orphan job.")
+                    return False
+            except Exception as check_err:
+                logger.warning(f"Printer status pre-check warning: {check_err}")
+
             logger.info(f"Sending to CUPS printer: {printer_name}...")
             logger.info(f"Executing CUPS command: {' '.join(primary_cmd)}")
-            result = subprocess.run(primary_cmd, capture_output=True, text=True)
+            result = subprocess.run(primary_cmd, capture_output=True, text=True, timeout=15)
             
             if result.returncode == 0:
                 logger.info(f"CUPS Output: {result.stdout.strip()}")
@@ -480,12 +490,14 @@ def print_job(job_id, file_info, supabase_client):
             # Safe Fallback: Basic compatible command with strict A4 locking
             logger.info("Retrying with minimal standard fallback...")
             safe_fallback_cmd = ["lp", "-d", printer_name, "-n", str(copies_num), "-o", "media=A4", "-o", "PageSize=A4", "-o", "fit-to-page", local_filepath]
-            fallback_res = subprocess.run(safe_fallback_cmd, capture_output=True, text=True)
+            fallback_res = subprocess.run(safe_fallback_cmd, capture_output=True, text=True, timeout=15)
             if fallback_res.returncode == 0:
                 logger.info(f"Safe Fallback Output: {fallback_res.stdout.strip()}")
                 return True
             else:
                 logger.error(f"Safe Fallback CUPS Error: {fallback_res.stderr.strip()}")
+                # Cancel any failed job that might be hanging in the queue
+                subprocess.run(["cancel", "-a", printer_name], capture_output=True, text=True, timeout=5)
                 return False
             
     except Exception as e:

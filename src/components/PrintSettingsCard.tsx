@@ -664,7 +664,7 @@ export default function PrintSettingsCard({
                 <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
                   <p style={{ fontSize: "0.72rem", color: "#64748b", margin: 0, display: "flex", alignItems: "center", gap: "4px" }}>
                     <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#4a5fc1", display: "inline-block" }}></span>
-                    Tap any file above to configure individually, or tap "Apply to all files".
+                    Tap any file above to configure individually, or tap &quot;Apply to all files&quot;.
                   </p>
                   
                   {/* Active File Banner */}

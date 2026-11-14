@@ -103,7 +103,7 @@ export default function Login() {
 
         <div className="auth-footer">
           <p>
-            Don't have an account? <a href="/auth/register">Sign up</a>
+            Don&apos;t have an account? <a href="/auth/register">Sign up</a>
           </p>
         </div>
       </div>

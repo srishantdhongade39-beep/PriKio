@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import crypto from 'crypto'
 
 // Helper for controlled concurrency
 async function mapConcurrent<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
@@ -38,13 +39,13 @@ export async function POST(request: Request) {
       }
 
       const jobId = crypto.randomUUID()
-      const otp = Math.floor(1000 + Math.random() * 9000).toString()
+      const otp = crypto.randomInt(1000, 10000).toString()
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString()
 
       // Generate signed upload URLs for each file so browser can upload directly
       const processedFiles = await Promise.all(
         clientFiles.map(async (file) => {
-          let fileName = file.fileName
+          const fileName = file.fileName
           const fileType = file.fileType || 'application/octet-stream'
           const safeFileName = fileName.replace(/[^a-zA-Z0-9.\-_]/g, '_')
           const storagePath = `${jobId}/${safeFileName}`
@@ -57,8 +58,8 @@ export async function POST(request: Request) {
             .from('documents')
             .createSignedUploadUrl(storagePath)
 
-          let signedUploadUrl = uploadData?.signedUrl || ''
-          let token = uploadData?.token || ''
+          const signedUploadUrl = uploadData?.signedUrl || ''
+          const token = uploadData?.token || ''
 
           // Generate download/preview signed URL
           const { data: signedUrlData } = await supabase.storage

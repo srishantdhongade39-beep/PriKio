@@ -22,7 +22,7 @@ function StatusScreen() {
   useEffect(() => {
     if (!hasHydrated) return
 
-    let currentJobId = urlJobId || globalJobId || sessionStorage.getItem('printJobId');
+    const currentJobId = urlJobId || globalJobId || sessionStorage.getItem('printJobId');
     if (!currentJobId) {
       router.push('/');
       return;

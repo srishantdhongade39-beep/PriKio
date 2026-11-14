@@ -17,7 +17,7 @@ export interface CostResult {
 function parsePageRange(rangeStr: string, totalPages: number): number {
   if (!rangeStr || rangeStr.toLowerCase() === 'all') return totalPages
 
-  let pages = new Set<number>()
+  const pages = new Set<number>()
   const parts = rangeStr.split(',')
   for (const part of parts) {
     if (part.includes('-')) {

@@ -5,9 +5,10 @@ import threading
 import platform
 import subprocess
 import asyncio
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 from supabase import create_client, Client, acreate_client
-from printer import print_job
+from printer import print_job, get_printer_capabilities
 
 load_dotenv()
 
@@ -34,9 +35,6 @@ def simulate_smart_plug_reboot():
     logger.critical("🔌 Printer frozen for >5 mins. Triggering Smart Plug hard reboot...")
     time.sleep(2)
     logger.info("🔌 Smart Plug reboot complete. Printer restarting...")
-
-from datetime import datetime, timezone
-from printer import print_job, get_printer_capabilities
 
 _CAPABILITIES_SUPPORTED = None
 
@@ -80,8 +78,32 @@ def push_notification(alert_type, message):
     except Exception as e:
         logger.error(f"Failed to push notification: {e}")
 
+def check_printer_online(printer_name):
+    """Checks whether the printer is physically connected and accepting jobs."""
+    if platform.system() == "Windows":
+        return True
+    try:
+        res = subprocess.run(["lpstat", "-p", printer_name], capture_output=True, text=True, timeout=5)
+        if res.returncode != 0:
+            return False
+        out = res.stdout.lower()
+        if "waiting for printer to become available" in out or "not connected" in out or "disabled" in out:
+            return False
+        return True
+    except Exception:
+        return False
+
+def clear_stale_cups_jobs():
+    """Purge stale/backlogged print jobs from CUPS on startup so old documents don't print upon reconnecting USB."""
+    if platform.system() != "Windows":
+        try:
+            logger.info("🧹 Purging any stale/backlogged print jobs from CUPS queue...")
+            subprocess.run(["cancel", "-a", "-x"], capture_output=True, text=True, timeout=5)
+        except Exception as e:
+            logger.warning(f"Could not purge CUPS queue: {e}")
+
 def poll_printer():
-    printer_name = os.getenv("PRINTER_NAME", "test_printer")
+    printer_name = os.getenv("PRINTER_NAME", "L3250-Series")
     logger.info(f"Started hardware monitoring for kiosk: {KIOSK_ID}, printer: {printer_name}")
     
     frozen_counter = 0
@@ -90,9 +112,11 @@ def poll_printer():
     while True:
         try:
             current_time = time.time()
-            # Send heartbeat every 60 seconds
+            printer_is_up = check_printer_online(printer_name)
+
+            # Send heartbeat every 60 seconds with accurate online status
             if current_time - last_telemetry_time > 60:
-                send_telemetry(is_online=True)
+                send_telemetry(is_online=printer_is_up)
                 last_telemetry_time = current_time
 
             if platform.system() == "Windows":
@@ -100,7 +124,7 @@ def poll_printer():
                 time.sleep(10)
                 continue
 
-            result = subprocess.run(["lpstat", "-p", printer_name], capture_output=True, text=True)
+            result = subprocess.run(["lpstat", "-p", printer_name], capture_output=True, text=True, timeout=5)
             output = result.stdout.lower()
             
             if "paused" in output or "error" in output or "jam" in output:
@@ -108,6 +132,11 @@ def poll_printer():
                 push_notification("hardware_error", f"Printer reported an error or is paused: {output.strip()}")
                 frozen_counter = 0
                 time.sleep(60) # Wait before spamming
+            elif "waiting for printer to become available" in output or "not connected" in output:
+                logger.warning("Printer USB is disconnected or unreachable. Purging queued jobs to prevent backlog...")
+                subprocess.run(["cancel", "-a", "-x"], capture_output=True, text=True, timeout=5)
+                frozen_counter = 0
+                time.sleep(10)
             elif "now printing" in output or "active" in output:
                 frozen_counter += 5
                 if frozen_counter >= 300:
@@ -202,6 +231,7 @@ async def listen_to_supabase():
 
 if __name__ == "__main__":
     logger.info("Starting PrintFlow Pi Controller (Supabase Edition)...")
+    clear_stale_cups_jobs()
     check_lte_connection()
     
     t = threading.Thread(target=poll_printer, daemon=True)
